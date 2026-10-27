@@ -1,0 +1,26 @@
+{
+  "ok": true,
+  "engine": "prusaslicer",
+  "engineVersion": "PrusaSlicer-2.8.1",
+  "profileName": "generic-0.20mm-15pct-0.4nozzle",
+  "filamentGrams": 3.55,
+  "filamentCm3": 2.86,
+  "printTimeSeconds": 1024,
+  "supports": false,
+  "boundingBoxMm": { "x": 20, "y": 20, "z": 20 },
+  "filamentDensityGPerCm3": 1.24,
+  "mesh": {
+    "watertight": true,
+    "volumeCm3": 8,
+    "surfaceAreaCm2": 24,
+    "overhangFaceShare": 0,
+    "overhangThresholdDeg": 45,
+    "thinWall": false,
+    "characteristicThicknessMm": 6.667,
+    "fitsBed": true,
+    "fitsIfRotated": true,
+    "partCount": 1,
+    "triangleCount": 12,
+    "boundingBoxMm": { "x": 20, "y": 20, "z": 20 }
+  }
+}

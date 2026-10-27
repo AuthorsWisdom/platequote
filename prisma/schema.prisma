@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Shop {
+  id                   String     @id @default(cuid())
+  name                 String
+  slug                 String     @unique
+  minimumOrder         Decimal    @db.Decimal(10, 2)
+  rushFee              Decimal    @db.Decimal(10, 2)
+  currency             String     @default("USD")
+  estimateTolerancePct Int        @default(15)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  printers             Printer[]
+  materials            Material[]
+  quotes               Quote[]
+  orders               Order[]
+}
+
+model Printer {
+  id        String  @id @default(cuid())
+  shopId    String
+  name      String
+  bedXmm    Float
+  bedYmm    Float
+  bedZmm    Float
+  isDefault Boolean @default(false)
+  shop      Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  quotes    Quote[]
+}
+
+model Material {
+  id                  String  @id @default(cuid())
+  shopId              String
+  name                String
+  slug                String
+  pricePerGram        Decimal @db.Decimal(10, 4)
+  pricePerMachineHour Decimal @db.Decimal(10, 2)
+  densityGPerCm3      Float
+  colors              Json
+  sortOrder           Int     @default(0)
+  shop                Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  quotes              Quote[]
+
+  @@unique([shopId, slug])
+}
+
+model Quote {
+  id               String   @id @default(cuid())
+  shopId           String
+  materialId       String
+  printerId        String?
+  status           String
+  originalFilename String
+  storedFilename   String
+  color            String
+  quantity         Int
+  rush             Boolean  @default(false)
+  purpose          String   @default("general")
+  filamentGrams    Float?
+  filamentCm3      Float?
+  slicedDensity    Float?
+  printTimeSeconds Int?
+  supports         Boolean?
+  meshFacts        Json?
+  slicerResult     Json?
+  aiReview         Json?
+  priceCents       Int?
+  priceBreakdown   Json?
+  errorMessage     String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  shop             Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  material         Material @relation(fields: [materialId], references: [id])
+  printer          Printer? @relation(fields: [printerId], references: [id])
+  order            Order?
+}
+
+model Order {
+  id              String    @id @default(cuid())
+  shopId          String
+  quoteId         String    @unique
+  status          String
+  amountCents     Int
+  currency        String    @default("USD")
+  paypalOrderId   String?   @unique
+  paypalCaptureId String?
+  payerEmail      String?
+  approvedAt      DateTime?
+  paidAt          DateTime?
+  printingAt      DateTime?
+  shippedAt       DateTime?
+  trackingNumber  String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  shop            Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  quote           Quote     @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+}

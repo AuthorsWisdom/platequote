@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+data
+uploads
+agent-tools
+worker
+mcp
+coverage
+*.log
+.env
+.env.*
+!.env.example

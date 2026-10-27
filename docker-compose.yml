@@ -1,0 +1,69 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: platequote
+      POSTGRES_PASSWORD: platequote
+      POSTGRES_DB: platequote
+    ports:
+      - "54329:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platequote -d platequote"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  worker:
+    build: ./worker
+    restart: unless-stopped
+    ports:
+      - "8091:8080"
+    environment:
+      PORT: "8080"
+      PRUSA_SLICER_BIN: /opt/prusaslicer/AppRun
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+
+  web:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "43123:3000"
+    environment:
+      DATABASE_URL: postgresql://platequote:platequote@db:5432/platequote
+      SLICER_WORKER_URL: http://worker:8080
+      UPLOAD_DIR: /data/uploads
+      PAYPAL_ENV: sandbox
+      PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
+      PAYPAL_WEBHOOK_ID: ${PAYPAL_WEBHOOK_ID:-}
+      PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS: ${PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      PORT: "3000"
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  uploads:

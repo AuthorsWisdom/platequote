@@ -1,0 +1,142 @@
+solid angle_bracket
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 40.0000 0.0000
+      vertex 50.0000 40.0000 4.0000
+      vertex 50.0000 40.0000 0.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 0.0000 0.0000
+      vertex 50.0000 0.0000 0.0000
+      vertex 50.0000 0.0000 4.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 40.0000 0.0000
+      vertex 4.0000 40.0000 4.0000
+      vertex 50.0000 40.0000 4.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 0.0000 0.0000
+      vertex 50.0000 0.0000 4.0000
+      vertex 4.0000 0.0000 4.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 40.0000 30.0000
+      vertex 4.0000 40.0000 4.0000
+      vertex 0.0000 40.0000 0.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 0.0000 30.0000
+      vertex 0.0000 0.0000 0.0000
+      vertex 4.0000 0.0000 4.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 4.0000 40.0000 4.0000
+      vertex 0.0000 40.0000 30.0000
+      vertex 4.0000 40.0000 30.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 4.0000 0.0000 4.0000
+      vertex 4.0000 0.0000 30.0000
+      vertex 0.0000 0.0000 30.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 0.0000 0.0000
+      vertex 50.0000 40.0000 0.0000
+      vertex 50.0000 0.0000 0.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 0.0000 0.0000
+      vertex 0.0000 40.0000 0.0000
+      vertex 50.0000 40.0000 0.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 50.0000 0.0000 0.0000
+      vertex 50.0000 40.0000 4.0000
+      vertex 50.0000 0.0000 4.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 50.0000 0.0000 0.0000
+      vertex 50.0000 40.0000 0.0000
+      vertex 50.0000 40.0000 4.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 50.0000 0.0000 4.0000
+      vertex 4.0000 40.0000 4.0000
+      vertex 4.0000 0.0000 4.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 50.0000 0.0000 4.0000
+      vertex 50.0000 40.0000 4.0000
+      vertex 4.0000 40.0000 4.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 4.0000 0.0000 4.0000
+      vertex 4.0000 40.0000 30.0000
+      vertex 4.0000 0.0000 30.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 4.0000 0.0000 4.0000
+      vertex 4.0000 40.0000 4.0000
+      vertex 4.0000 40.0000 30.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 4.0000 0.0000 30.0000
+      vertex 0.0000 40.0000 30.0000
+      vertex 0.0000 0.0000 30.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 4.0000 0.0000 30.0000
+      vertex 4.0000 40.0000 30.0000
+      vertex 0.0000 40.0000 30.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 0.0000 30.0000
+      vertex 0.0000 40.0000 0.0000
+      vertex 0.0000 0.0000 0.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 0.0000 30.0000
+      vertex 0.0000 40.0000 30.0000
+      vertex 0.0000 40.0000 0.0000
+    endloop
+  endfacet
+endsolid angle_bracket

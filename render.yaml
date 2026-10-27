@@ -1,0 +1,62 @@
+# Render blueprint for PlateQuote.
+# The owner applies this from the Render dashboard. This file does not deploy anything.
+# A persistent disk requires a paid web service. Free instances have an ephemeral disk.
+
+services:
+  - type: web
+    name: platequote-web
+    runtime: node
+    plan: starter
+    region: oregon
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && node prisma/seed.mjs && npm run start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: platequote-db
+          property: connectionString
+      - key: SLICER_WORKER_URL
+        fromService:
+          name: platequote-worker
+          type: pserv
+          property: hostport
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      - key: PAYPAL_ENV
+        value: sandbox
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: LLM_PROVIDER
+        value: mock
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        sync: false
+      - key: LLM_BASE_URL
+        sync: false
+    disk:
+      name: platequote-uploads
+      mountPath: /var/data
+      sizeGB: 1
+
+  - type: pserv
+    name: platequote-worker
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./worker/Dockerfile
+    dockerContext: ./worker
+    healthCheckPath: /health
+
+databases:
+  - name: platequote-db
+    plan: basic-256mb
+    databaseName: platequote
+    user: platequote

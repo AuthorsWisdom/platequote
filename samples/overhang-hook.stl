@@ -1,0 +1,198 @@
+solid overhang_hook
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 24.0000 0.0000
+      vertex 40.0000 24.0000 4.0000
+      vertex 40.0000 24.0000 0.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 0.0000 0.0000
+      vertex 40.0000 0.0000 0.0000
+      vertex 40.0000 0.0000 4.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 24.0000 0.0000
+      vertex 8.0000 24.0000 4.0000
+      vertex 40.0000 24.0000 4.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 0.0000 0.0000
+      vertex 40.0000 0.0000 4.0000
+      vertex 8.0000 0.0000 4.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 24.0000 28.0000
+      vertex 8.0000 24.0000 4.0000
+      vertex 0.0000 24.0000 0.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 0.0000 28.0000
+      vertex 0.0000 0.0000 0.0000
+      vertex 8.0000 0.0000 4.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 24.0000 28.0000
+      vertex 8.0000 24.0000 24.0000
+      vertex 8.0000 24.0000 4.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 0.0000 28.0000
+      vertex 8.0000 0.0000 4.0000
+      vertex 8.0000 0.0000 24.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 24.0000 28.0000
+      vertex 28.0000 24.0000 24.0000
+      vertex 8.0000 24.0000 24.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 0.0000 28.0000
+      vertex 8.0000 0.0000 24.0000
+      vertex 28.0000 0.0000 24.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 28.0000 24.0000 24.0000
+      vertex 0.0000 24.0000 28.0000
+      vertex 28.0000 24.0000 28.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 28.0000 0.0000 24.0000
+      vertex 28.0000 0.0000 28.0000
+      vertex 0.0000 0.0000 28.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 0.0000 0.0000
+      vertex 40.0000 24.0000 0.0000
+      vertex 40.0000 0.0000 0.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 0.0000 0.0000
+      vertex 0.0000 24.0000 0.0000
+      vertex 40.0000 24.0000 0.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 40.0000 0.0000 0.0000
+      vertex 40.0000 24.0000 4.0000
+      vertex 40.0000 0.0000 4.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 40.0000 0.0000 0.0000
+      vertex 40.0000 24.0000 0.0000
+      vertex 40.0000 24.0000 4.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 40.0000 0.0000 4.0000
+      vertex 8.0000 24.0000 4.0000
+      vertex 8.0000 0.0000 4.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 40.0000 0.0000 4.0000
+      vertex 40.0000 24.0000 4.0000
+      vertex 8.0000 24.0000 4.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 8.0000 0.0000 4.0000
+      vertex 8.0000 24.0000 24.0000
+      vertex 8.0000 0.0000 24.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 8.0000 0.0000 4.0000
+      vertex 8.0000 24.0000 4.0000
+      vertex 8.0000 24.0000 24.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 8.0000 0.0000 24.0000
+      vertex 28.0000 24.0000 24.0000
+      vertex 28.0000 0.0000 24.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 8.0000 0.0000 24.0000
+      vertex 8.0000 24.0000 24.0000
+      vertex 28.0000 24.0000 24.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 28.0000 0.0000 24.0000
+      vertex 28.0000 24.0000 28.0000
+      vertex 28.0000 0.0000 28.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 28.0000 0.0000 24.0000
+      vertex 28.0000 24.0000 24.0000
+      vertex 28.0000 24.0000 28.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 28.0000 0.0000 28.0000
+      vertex 0.0000 24.0000 28.0000
+      vertex 0.0000 0.0000 28.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 28.0000 0.0000 28.0000
+      vertex 28.0000 24.0000 28.0000
+      vertex 0.0000 24.0000 28.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 0.0000 28.0000
+      vertex 0.0000 24.0000 0.0000
+      vertex 0.0000 0.0000 0.0000
+    endloop
+  endfacet
+  facet normal 0 0 0
+    outer loop
+      vertex 0.0000 0.0000 28.0000
+      vertex 0.0000 24.0000 28.0000
+      vertex 0.0000 24.0000 0.0000
+    endloop
+  endfacet
+endsolid overhang_hook
