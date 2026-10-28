@@ -2,7 +2,7 @@
 
 PlateQuote is a quote-and-checkout page for a one-person 3D-print shop. A customer uploads an STL or 3MF. A separate slicer process returns filament weight, print time, and whether supports were generated. The price is that output times the shop's own rates. A written review explains printability and materials. It does not set the price. Checkout, when configured, uses the PayPal sandbox.
 
-This repository is the hackathon build for the PayPal AI Hackathon (Devpost deadline November 12, 2026, 12:00pm PT). Nothing here has been deployed, and no accounts or domains have been registered by this project.
+This repository is the hackathon build for the PayPal AI Hackathon (Devpost deadline November 12, 2026, 12:00pm PT). The hosted demo runs on Render at `https://platequote-web.onrender.com` (free plan, deployed 2026-10-28); no custom domain is registered.
 
 ## What works
 
@@ -117,4 +117,4 @@ PrusaSlicer is AGPL-3.0. This repo does not vendor or link its source. The worke
 
 ## License
 
-`LICENSE` is MIT as a placeholder. The license choice is pending the owner's confirmation. Do not treat that file as a final decision.
+MIT, confirmed by the owner on 2026-10-28. See `LICENSE`.
