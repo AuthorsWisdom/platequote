@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { centsFromPaypalValue } from "@/lib/paypal-events";
+import { unverifiedWebhooksPermitted } from "@/lib/paypal-policy";
 
 const SANDBOX_API = "https://api-m.sandbox.paypal.com";
 
@@ -163,11 +164,11 @@ export async function createPaypalCheckout(localOrderId: string) {
   });
   const paypalOrderId = typeof created.body?.id === "string" ? created.body.id : null;
   if (!created.ok || !paypalOrderId) {
-    const message =
-      typeof created.body?.message === "string"
-        ? created.body.message
-        : "PayPal could not create the sandbox order.";
-    return { ok: false as const, status: 502, message };
+    return {
+      ok: false as const,
+      status: 502,
+      message: externalMessage(created.body?.message, "PayPal could not create the sandbox order."),
+    };
   }
   await prisma.order.update({
     where: { id: order.id },
@@ -223,11 +224,11 @@ export async function capturePaypalCheckout(paypalOrderId: string) {
     capture = extractCapture(result.body);
   }
   if (!capture || capture.status !== "COMPLETED") {
-    const message =
-      typeof result.body?.message === "string"
-        ? result.body.message
-        : "PayPal did not complete the capture.";
-    return { ok: false as const, status: 502, message };
+    return {
+      ok: false as const,
+      status: 502,
+      message: externalMessage(result.body?.message, "PayPal did not complete the capture."),
+    };
   }
   const amountCents = centsFromPaypalValue(capture.amountValue);
   if (amountCents == null || amountCents !== order.amountCents) {
@@ -283,10 +284,18 @@ export async function markPaidFromWebhook(input: {
   return { ok: true as const, status: "paid" as const };
 }
 
+function externalMessage(value: unknown, fallback: string): string {
+  if (typeof value !== "string") return fallback;
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  if (!cleaned || cleaned.length > 240) return fallback;
+  if (/postgres|prisma|secret|stack|database_url|bearer /i.test(cleaned)) return fallback;
+  return cleaned;
+}
+
 export async function verifyWebhook(headers: Headers, event: unknown): Promise<boolean> {
   const webhookId = process.env.PAYPAL_WEBHOOK_ID?.trim();
   if (!webhookId) {
-    return process.env.PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS === "true";
+    return unverifiedWebhooksPermitted();
   }
   assertSandboxConfigured();
   const token = await accessToken();

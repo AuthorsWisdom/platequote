@@ -24,6 +24,7 @@ services:
     environment:
       PORT: "8080"
       PRUSA_SLICER_BIN: /opt/prusaslicer/AppRun
+      SLICER_WORKER_TOKEN: ${SLICER_WORKER_TOKEN:-platequote-dev-worker}
     healthcheck:
       test:
         [
@@ -45,6 +46,9 @@ services:
     environment:
       DATABASE_URL: postgresql://platequote:platequote@db:5432/platequote
       SLICER_WORKER_URL: http://worker:8080
+      SLICER_WORKER_TOKEN: ${SLICER_WORKER_TOKEN:-platequote-dev-worker}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-platequote-dev}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-platequote-dev-session-secret}
       UPLOAD_DIR: /data/uploads
       PAYPAL_ENV: sandbox
       PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}

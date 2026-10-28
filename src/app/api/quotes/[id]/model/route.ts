@@ -1,11 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { jsonError } from "@/lib/http";
 import { quoteModelFile } from "@/lib/quote-service";
+import { recordIdSchema } from "@/lib/validators";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
+  if (!recordIdSchema.safeParse(id).success) return jsonError(404, "not_found", "That model file is not on this server.");
   const model = await quoteModelFile(id);
   if (!model) return jsonError(404, "not_found", "That model file is not on this server.");
   try {

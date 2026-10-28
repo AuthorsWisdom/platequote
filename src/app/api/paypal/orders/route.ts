@@ -1,12 +1,14 @@
-import { jsonError } from "@/lib/http";
+import { declaredBodyTooLarge, jsonError } from "@/lib/http";
 import { PaypalNotConfiguredError, createPaypalCheckout } from "@/lib/paypal";
+import { recordIdSchema } from "@/lib/validators";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
-const bodySchema = z.object({ orderId: z.string().min(1) });
+const bodySchema = z.object({ orderId: recordIdSchema });
 
 export async function POST(request: Request) {
+  if (declaredBodyTooLarge(request, 16_384)) return jsonError(413, "too_large", "The request is too large.");
   let json: unknown;
   try {
     json = await request.json();

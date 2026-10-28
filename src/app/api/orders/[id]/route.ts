@@ -1,11 +1,15 @@
+import { requireAdmin } from "@/lib/admin-session";
 import { jsonError } from "@/lib/http";
 import { advanceOrder } from "@/lib/orders";
-import { orderStatusSchema } from "@/lib/validators";
+import { orderStatusSchema, recordIdSchema } from "@/lib/validators";
 
 export const dynamic = "force-dynamic";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdmin(request);
+  if (denied) return denied;
   const { id } = await context.params;
+  if (!recordIdSchema.safeParse(id).success) return jsonError(404, "not_found", "Order not found.");
   let json: unknown;
   try {
     json = await request.json();

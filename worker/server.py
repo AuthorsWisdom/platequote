@@ -19,17 +19,34 @@ MAX_BYTES = 25 * 1024 * 1024
 app = FastAPI(title="PlateQuote slicer", version="0.1.0")
 
 
+def _hosted() -> bool:
+    if os.environ.get("RENDER", "").strip().lower() == "true":
+        return True
+    return bool(os.environ.get("RENDER_SERVICE_ID", "").strip())
+
+
+def token_matches(provided: str | None, expected: str) -> bool:
+    """Compare digests so a length mismatch cannot raise and the check stays fixed-length."""
+    given = provided or ""
+    key = b"platequote-worker-token"
+    given_digest = hmac.new(key, given.encode("utf-8", "replace"), "sha256").digest()
+    expected_digest = hmac.new(key, expected.encode("utf-8", "replace"), "sha256").digest()
+    return hmac.compare_digest(given_digest, expected_digest)
+
+
 def require_worker_token(x_worker_token: str | None = Header(default=None)) -> None:
     """Shared-secret gate for /slice.
 
-    When SLICER_WORKER_TOKEN is set (it is, on the public Render service), every
-    slice request must carry the same value in the X-Worker-Token header. Unset
-    means local development with no gate. /health stays open either way.
+    SLICER_WORKER_TOKEN must match the X-Worker-Token header. On Render the route
+    stays closed when the secret is missing. A local process with the variable
+    unset stays open so ad-hoc dev still works. /health stays open either way.
     """
-    expected = os.environ.get("SLICER_WORKER_TOKEN", "")
+    expected = os.environ.get("SLICER_WORKER_TOKEN", "").strip()
     if not expected:
+        if _hosted():
+            raise HTTPException(status_code=503, detail="worker token is not configured")
         return
-    if not x_worker_token or not hmac.compare_digest(x_worker_token, expected):
+    if not token_matches(x_worker_token, expected):
         raise HTTPException(status_code=401, detail="worker token missing or wrong")
 
 

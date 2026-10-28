@@ -1,6 +1,8 @@
 import { jsonError } from "@/lib/http";
 import { PaypalNotConfiguredError, capturePaypalCheckout } from "@/lib/paypal";
 
+const paypalOrderIdSchema = /^[A-Za-z0-9_-]{8,64}$/;
+
 export const dynamic = "force-dynamic";
 
 export async function POST(
@@ -8,6 +10,9 @@ export async function POST(
   context: { params: Promise<{ paypalOrderId: string }> },
 ) {
   const { paypalOrderId } = await context.params;
+  if (!paypalOrderIdSchema.test(paypalOrderId)) {
+    return jsonError(404, "not_found", "No PlateQuote order matches that PayPal order.");
+  }
   try {
     const result = await capturePaypalCheckout(paypalOrderId);
     if (!result.ok) return jsonError(result.status, "paypal_capture_failed", result.message);

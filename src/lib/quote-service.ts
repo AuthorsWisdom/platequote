@@ -6,10 +6,12 @@ import { attachEnginePrices } from "@/lib/ai/price-advice";
 import { reviewPrint } from "@/lib/ai/review";
 import { prisma } from "@/lib/db";
 import { gramsForMaterial, priceQuote, type PriceBreakdown } from "@/lib/pricing";
+import { toPublicOrder } from "@/lib/public-order";
 import { meshFactsSchema, parseSlicerResult, type SlicerResponse } from "@/lib/slicer-result";
 import { getShopRecord, toMaterialDTO, toPrinterDTO } from "@/lib/shop";
 import type { MeshFactsDTO, OrderStatus, PriceBreakdownDTO, QuoteDTO, StoredReview } from "@/lib/types";
-import { MAX_UPLOAD_BYTES } from "@/lib/constants";
+import { inspectUpload, resolveStoredUpload } from "@/lib/uploads";
+import { workerHeaders, workerMisconfigured } from "@/lib/worker-auth";
 
 const quoteInclude = {
   material: true,
@@ -30,22 +32,9 @@ export function workerBaseUrl(): string {
   return `http://${raw}`;
 }
 
-/** Headers for worker calls: the shared token when one is configured, nothing otherwise. */
-export function workerHeaders(): Record<string, string> {
-  const token = (process.env.SLICER_WORKER_TOKEN || "").trim();
-  return token ? { "X-Worker-Token": token } : {};
-}
-
 function asOrderStatus(value: string): OrderStatus {
   if (value === "paid" || value === "printing" || value === "shipped") return value;
   return "quoted";
-}
-
-function extensionOf(filename: string): ".stl" | ".3mf" | null {
-  const lower = filename.toLowerCase();
-  if (lower.endsWith(".stl")) return ".stl";
-  if (lower.endsWith(".3mf")) return ".3mf";
-  return null;
 }
 
 function asRecord(value: Prisma.JsonValue): Record<string, unknown> | null {
@@ -98,7 +87,7 @@ export function toQuoteDTO(quote: QuoteRecord): QuoteDTO {
     errorMessage: quote.errorMessage,
     createdAt: quote.createdAt.toISOString(),
     order: quote.order
-      ? {
+      ? toPublicOrder({
           id: quote.order.id,
           status: asOrderStatus(quote.order.status),
           amountCents: quote.order.amountCents,
@@ -106,7 +95,7 @@ export function toQuoteDTO(quote: QuoteRecord): QuoteDTO {
           paypalCaptureId: quote.order.paypalCaptureId,
           payerEmail: quote.order.payerEmail,
           paidAt: quote.order.paidAt?.toISOString() ?? null,
-        }
+        })
       : null,
   };
 }
@@ -123,9 +112,8 @@ export async function getQuote(id: string): Promise<QuoteDTO | null> {
 export async function quoteModelFile(id: string) {
   const quote = await prisma.quote.findUnique({ where: { id } });
   if (!quote) return null;
-  const directory = path.resolve(uploadDirectory());
-  const full = path.resolve(directory, quote.storedFilename);
-  if (!full.startsWith(directory + path.sep)) return null;
+  const full = resolveStoredUpload(uploadDirectory(), quote.storedFilename);
+  if (!full) return null;
   return { full, filename: quote.originalFilename, stored: quote.storedFilename };
 }
 
@@ -145,6 +133,14 @@ async function sliceUpload(input: {
   body.append("bed_x", String(input.bedXmm));
   body.append("bed_y", String(input.bedYmm));
   body.append("bed_z", String(input.bedZmm));
+  if (workerMisconfigured()) {
+    return {
+      ok: false,
+      error: "worker_unauthorized",
+      message: "The slicing worker secret is not configured on this host.",
+      mesh: null,
+    };
+  }
   let response: Response;
   try {
     response = await fetch(`${workerBaseUrl()}/slice`, {
@@ -161,7 +157,7 @@ async function sliceUpload(input: {
       mesh: null,
     };
   }
-  if (response.status === 401) {
+  if (response.status === 401 || response.status === 503) {
     return {
       ok: false,
       error: "worker_unauthorized",
@@ -236,11 +232,9 @@ export async function createQuote(input: {
   rush: boolean;
   purpose: string;
 }): Promise<QuoteDTO> {
-  if (input.bytes.byteLength > MAX_UPLOAD_BYTES) {
-    throw new QuoteInputError("That file is over the 25 MB upload cap.");
-  }
-  const extension = extensionOf(input.filename);
-  if (!extension) throw new QuoteInputError("Upload an .stl or .3mf file.");
+  const inspected = inspectUpload(input.filename, input.bytes);
+  if (!inspected.ok) throw new QuoteInputError(inspected.message);
+  const extension = inspected.extension;
 
   const shop = await getShopRecord();
   const material = shop.materials.find((item) => item.id === input.materialId);
@@ -263,7 +257,7 @@ export async function createQuote(input: {
       materialId: material.id,
       printerId: printer.id,
       status: "slicing",
-      originalFilename: path.basename(input.filename).slice(0, 180),
+      originalFilename: inspected.filename,
       storedFilename,
       color: input.color,
       quantity: input.quantity,

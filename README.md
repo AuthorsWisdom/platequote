@@ -29,7 +29,7 @@ cp .env.example .env   # optional; empty PayPal keys are fine
 docker compose up --build
 ```
 
-Open [http://127.0.0.1:43123](http://127.0.0.1:43123).
+Open [http://127.0.0.1:43123](http://127.0.0.1:43123). Shop admin is at [http://127.0.0.1:43123/login](http://127.0.0.1:43123/login). The local password is `platequote-dev` (see `.env.example`).
 
 - Web app: port 43123
 - Slicer worker: port 8091
@@ -63,31 +63,50 @@ You should see grams, time, a price breakdown, and a review. The overhang hook s
 2. Put `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` in `.env`. Keep `PAYPAL_ENV=sandbox`.
 3. Recreate the web container so it picks up the env: `docker compose up -d --build web`.
 4. Price a part, then use the PayPal button and the sandbox buyer. The button loads `https://www.sandbox.paypal.com/web-sdk/v6/core`. The server calls `https://api-m.sandbox.paypal.com` only.
-5. After capture, the order is paid and shows on `/dashboard`.
+5. After capture, the order is paid and shows on `/dashboard` once you are signed in as the shop admin.
 
 This build rejects any PayPal environment other than sandbox.
 
-Webhooks are the backup path if the browser closes after approval. Register the listener URL in the sandbox app and set `PAYPAL_WEBHOOK_ID`. Signatures are verified against PayPal. For a hand-posted local fixture only, set `PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS=true`. Leave that unset otherwise. `CHECKOUT.ORDER.APPROVED` triggers a server capture. `PAYMENT.CAPTURE.COMPLETED` marks the order paid when the amount matches the quote. A mismatch does not mark it paid.
+Webhooks are the backup path if the browser closes after approval. Register the listener URL in the sandbox app and set `PAYPAL_WEBHOOK_ID`. Signatures are verified against PayPal. For a hand-posted local fixture only, set `PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS=true` while running `npm run dev`. That flag is ignored when `NODE_ENV=production`, which covers Docker, `next start`, and Render. `CHECKOUT.ORDER.APPROVED` triggers a server capture. `PAYMENT.CAPTURE.COMPLETED` marks the order paid when the amount matches the quote. A mismatch does not mark it paid.
 
 No sandbox buyer login is included here. Use the buyer from your own sandbox app.
 
 ## Environment
 
-| Variable | Purpose |
-| --- | --- |
-| `DATABASE_URL` | Postgres connection string |
-| `SLICER_WORKER_URL` | Worker base URL, or `host:port` |
-| `SLICER_WORKER_TOKEN` | Shared secret sent as `X-Worker-Token`; the worker refuses `/slice` without it when its own copy is set. Unset for local work |
-| `UPLOAD_DIR` | Where uploaded meshes are stored |
-| `PAYPAL_ENV` | Must be `sandbox` |
-| `PAYPAL_CLIENT_ID` | Sandbox client id (public) |
-| `PAYPAL_CLIENT_SECRET` | Sandbox secret. Server only |
-| `PAYPAL_WEBHOOK_ID` | Sandbox webhook id for signature checks |
-| `PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS` | `true` only for local unsigned webhook posts |
-| `LLM_PROVIDER` | `mock`, `openai`, or `anthropic` |
-| `LLM_API_KEY` | Blank falls back to the mock reviewer |
-| `LLM_MODEL` | Overrides the provider default |
-| `LLM_BASE_URL` | OpenAI-compatible base URL |
+Dev values below are not production secrets. Copy `.env.example` for local `npm run dev`. Docker Compose uses the same defaults when the variables are unset.
+
+| Variable | Required on Render | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | Yes, from the database | Postgres connection string |
+| `SLICER_WORKER_URL` | Yes, set in the blueprint | Worker base URL, or `host:port` |
+| `SLICER_WORKER_TOKEN` | Yes, generated and shared | Shared secret sent as `X-Worker-Token`. Both services must have the same value. On Render it lives in the `platequote-worker-auth` env group |
+| `ADMIN_PASSWORD` | Yes, you set it (`sync: false`) | Shop admin password. Unset locks admin. The dev value is refused on Render |
+| `ADMIN_SESSION_SECRET` | Yes, generated | HMAC key for the admin session cookie. Unset locks admin |
+| `UPLOAD_DIR` | Set in the blueprint | Where uploaded meshes are stored |
+| `PAYPAL_ENV` | Yes, `sandbox` | Must be `sandbox` |
+| `PAYPAL_CLIENT_ID` | For checkout | Sandbox client id (public) |
+| `PAYPAL_CLIENT_SECRET` | For checkout | Sandbox secret. Server only |
+| `PAYPAL_WEBHOOK_ID` | For webhooks | Sandbox webhook id for signature checks |
+| `PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS` | Do not set | `true` only for unsigned posts to `npm run dev`. Ignored in production |
+| `LLM_PROVIDER` | Optional (`mock` in the blueprint) | `mock`, `openai`, or `anthropic` |
+| `LLM_API_KEY` | Optional | Blank falls back to the mock reviewer |
+| `LLM_MODEL` | Optional | Overrides the provider default |
+| `LLM_BASE_URL` | Optional | OpenAI-compatible base URL |
+
+Local dev password and session secret, also used by Compose: `platequote-dev` and `platequote-dev-session-secret`. Local worker token: `platequote-dev-worker`.
+
+## Security
+
+The public site is the quote flow and PayPal checkout. Shop admin is a password gate. Quote links use unguessable ids. Anyone with a link can see that quote, reprice it before payment, and pay it. Changing shop rates or order status requires the admin session.
+
+- `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` both have to be set or admin stays locked, including locally. On Render the documented dev password and dev session secret are refused, so a copied `.env.example` cannot open the public admin. The session cookie is `HttpOnly` and `SameSite=Lax`, and `Secure` on Render. It is HMAC-signed, expires after 7 days, and stops working if the password changes. Log out from the header.
+- Protected on the server (middleware and the route handlers): `/dashboard`, `/dashboard/settings`, `/dashboard/ops`, `PUT /api/shop`, `GET /api/orders`, and `PATCH /api/orders/[id]`. `GET /api/shop`, quote upload, `/q/[id]`, and PayPal checkout stay public.
+- The worker's `POST /slice` requires header `X-Worker-Token` when `SLICER_WORKER_TOKEN` is set. On Render the route stays closed if that secret is missing. `GET /health` stays open. The blueprint generates one value in an env group and links it to both services.
+- The buyer's PayPal email is stored for the admin orders list. The public quote page and `GET /api/quotes/[id]` do not include it.
+- Quote creation is limited to 10 requests per 10 minutes per IP and 30 per 10 minutes for the whole instance. Admin login is limited to 8 attempts per 15 minutes per IP. The limiter is in memory, which fits a single free instance.
+- Uploads are capped at 25 MB, must look like STL or 3MF, and are stored under a generated filename. Download paths cannot leave the upload directory.
+- Responses send a Content-Security-Policy that allows the PayPal sandbox JS SDK v6 (`sandbox.paypal.com` and `paypal.com`) and the bundled three.js preview, plus HSTS, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy: strict-origin-when-cross-origin`.
+- Unexpected errors are logged on the server and returned as a short message. PayPal webhooks are checked with PayPal's signature API when `PAYPAL_WEBHOOK_ID` is set. `PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS` cannot turn that off in production.
 
 ## Tests
 
@@ -95,7 +114,7 @@ No sandbox buyer login is included here. Use the buyer from your own sandbox app
 npm test
 ```
 
-Covers the pricing engine, slicer JSON parsing, the mock review (no prices), and PayPal webhook interpretation.
+Covers the pricing engine, slicer JSON parsing, the mock review (no prices), PayPal webhook interpretation, the admin session gate, and rate limits.
 
 ```bash
 python3 -m venv .venv
@@ -103,13 +122,15 @@ python3 -m venv .venv
 .venv/bin/pytest worker/tests
 ```
 
-Covers PrusaSlicer G-code summary parsing (grams, time, support extrusion).
+Covers PrusaSlicer G-code summary parsing (grams, time, support extrusion) and the worker token check, including the closed-by-default behavior on Render.
 
 ## Render
 
-`render.yaml` describes two free web services (the Next.js app and the Docker slicer worker) and a free Postgres. Applying it is the owner's step. Free instances have an ephemeral filesystem, so uploads live in `/tmp` and do not survive a restart, and a free service sleeps after 15 idle minutes (the first request after that is slow). The worker is reachable on its public `onrender.com` URL; set `SLICER_WORKER_URL` in the dashboard if Render suffixes the name. Set the PayPal and LLM secrets in the Render dashboard. Do not put them in the blueprint. Hackathon credits, if any, are claimed by the owner.
+`render.yaml` describes two free web services (the Next.js app and the Docker slicer worker) and a free Postgres. The hosted demo is already on Render. Syncing the blueprint is how new variables reach those services. Editing this file does not deploy by itself. Free instances have an ephemeral filesystem, so uploads live in `/tmp` and do not survive a restart, and a free service sleeps after 15 idle minutes (the first request after that is slow). The worker is reachable on its public `onrender.com` URL; set `SLICER_WORKER_URL` in the dashboard if Render suffixes the name.
 
-`SLICER_WORKER_URL` is set in the blueprint to the worker's public `onrender.com` URL. The app adds `http://` when the value has no scheme.
+Set `ADMIN_PASSWORD` and the PayPal and LLM secrets in the Render dashboard when the blueprint prompts for them. Do not put secret values in the blueprint. `ADMIN_SESSION_SECRET` and `SLICER_WORKER_TOKEN` are generated. The worker token is one value in the `platequote-worker-auth` env group, linked to both services. If a service-level `SLICER_WORKER_TOKEN` is still present from an older sync, remove it so both services use the group value. Hackathon credits, if any, are claimed by the owner.
+
+`SLICER_WORKER_URL` is set in the blueprint to the worker's public `onrender.com` URL. The app adds `http://` when the value has no scheme. After the first sync, sign in at `/login` with the password you set. Quotes work before that. Admin does not.
 
 ## Slicer license
 

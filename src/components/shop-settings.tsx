@@ -105,6 +105,10 @@ export function ShopSettings() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      if (response.status === 401) {
+        window.location.assign("/login?next=/dashboard/settings");
+        return;
+      }
       const payload = (await response.json()) as ShopDTO & { message?: string };
       if (!response.ok) throw new Error(payload.message || "Could not save.");
       setDraft(fromShop(payload));
