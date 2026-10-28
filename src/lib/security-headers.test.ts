@@ -8,6 +8,8 @@ describe("securityHeaders", () => {
     expect(csp).toContain("https://www.paypal.com");
     expect(csp).toContain("script-src 'self'");
     expect(csp).toContain("worker-src 'self' blob:");
+    // The quote page previews the chosen file from an object URL; three's loader fetches it.
+    expect(csp).toContain("connect-src 'self' blob:");
     expect(csp).toContain("frame-ancestors 'none'");
 
     const headers = Object.fromEntries(securityHeaders().map((header) => [header.key, header.value]));

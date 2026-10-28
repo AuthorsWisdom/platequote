@@ -10,7 +10,7 @@ export function contentSecurityPolicy(): string {
     "style-src 'self' 'unsafe-inline' https://www.sandbox.paypal.com https://www.paypal.com",
     "img-src 'self' data: blob: https://www.paypalobjects.com https://www.sandbox.paypal.com https://www.paypal.com",
     "font-src 'self' data:",
-    "connect-src 'self' https://www.sandbox.paypal.com https://sandbox.paypal.com https://www.paypal.com https://www.paypalobjects.com https://api-m.sandbox.paypal.com",
+    "connect-src 'self' blob: https://www.sandbox.paypal.com https://sandbox.paypal.com https://www.paypal.com https://www.paypalobjects.com https://api-m.sandbox.paypal.com",
     "frame-src https://www.sandbox.paypal.com https://sandbox.paypal.com https://www.paypal.com https://www.paypalobjects.com",
     "worker-src 'self' blob:",
     "frame-ancestors 'none'",
