@@ -1,12 +1,16 @@
-# Render blueprint for PlateQuote.
+# Render blueprint for PlateQuote (free plans, ruled 2026-10-28 "free plan for now").
 # The owner applies this from the Render dashboard. This file does not deploy anything.
-# A persistent disk requires a paid web service. Free instances have an ephemeral disk.
+# Free web services have an ephemeral disk and sleep after 15 minutes idle, so uploads
+# do not survive a restart and the first request after a sleep is slow. The free Postgres
+# has a time limit on Render's side; upgrade it before judging if it is close to expiry.
+# The slicer worker runs as a second free web service because private services have no
+# free plan. Set SLICER_WORKER_URL in the dashboard if Render suffixes the worker's name.
 
 services:
   - type: web
     name: platequote-web
     runtime: node
-    plan: starter
+    plan: free
     region: oregon
     buildCommand: npm ci && npx prisma generate && npm run build
     startCommand: npx prisma migrate deploy && node prisma/seed.mjs && npm run start
@@ -19,12 +23,9 @@ services:
           name: platequote-db
           property: connectionString
       - key: SLICER_WORKER_URL
-        fromService:
-          name: platequote-worker
-          type: pserv
-          property: hostport
+        value: https://platequote-worker.onrender.com
       - key: UPLOAD_DIR
-        value: /var/data/uploads
+        value: /tmp/platequote-uploads
       - key: PAYPAL_ENV
         value: sandbox
       - key: PAYPAL_CLIENT_ID
@@ -41,21 +42,18 @@ services:
         sync: false
       - key: LLM_BASE_URL
         sync: false
-    disk:
-      name: platequote-uploads
-      mountPath: /var/data
-      sizeGB: 1
 
-  - type: pserv
+  - type: web
     name: platequote-worker
     runtime: docker
-    plan: starter
+    plan: free
     region: oregon
     dockerfilePath: ./worker/Dockerfile
     dockerContext: ./worker
+    healthCheckPath: /health
 
 databases:
   - name: platequote-db
-    plan: basic-256mb
+    plan: free
     databaseName: platequote
     user: platequote
