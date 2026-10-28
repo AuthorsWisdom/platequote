@@ -108,7 +108,7 @@ Covers PrusaSlicer G-code summary parsing (grams, time, support extrusion).
 
 `render.yaml` describes two free web services (the Next.js app and the Docker slicer worker) and a free Postgres. Applying it is the owner's step. Free instances have an ephemeral filesystem, so uploads live in `/tmp` and do not survive a restart, and a free service sleeps after 15 idle minutes (the first request after that is slow). The worker is reachable on its public `onrender.com` URL; set `SLICER_WORKER_URL` in the dashboard if Render suffixes the name. Set the PayPal and LLM secrets in the Render dashboard. Do not put them in the blueprint. Hackathon credits, if any, are claimed by the owner.
 
-`SLICER_WORKER_URL` is wired from the private service host and port. The app adds `http://` when the value has no scheme.
+`SLICER_WORKER_URL` is set in the blueprint to the worker's public `onrender.com` URL. The app adds `http://` when the value has no scheme.
 
 ## Slicer license
 
