@@ -53,7 +53,6 @@ services:
     region: oregon
     dockerfilePath: ./worker/Dockerfile
     dockerContext: ./worker
-    healthCheckPath: /health
 
 databases:
   - name: platequote-db
