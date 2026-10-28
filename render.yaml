@@ -24,6 +24,11 @@ services:
           property: connectionString
       - key: SLICER_WORKER_URL
         value: https://platequote-worker.onrender.com
+      - key: SLICER_WORKER_TOKEN
+        fromService:
+          type: web
+          name: platequote-worker
+          envVarKey: SLICER_WORKER_TOKEN
       - key: UPLOAD_DIR
         value: /tmp/platequote-uploads
       - key: PAYPAL_ENV
@@ -51,6 +56,9 @@ services:
     dockerfilePath: ./worker/Dockerfile
     dockerContext: ./worker
     healthCheckPath: /health
+    envVars:
+      - key: SLICER_WORKER_TOKEN
+        generateValue: true
 
 databases:
   - name: platequote-db

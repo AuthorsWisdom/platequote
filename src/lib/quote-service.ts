@@ -30,6 +30,12 @@ export function workerBaseUrl(): string {
   return `http://${raw}`;
 }
 
+/** Headers for worker calls: the shared token when one is configured, nothing otherwise. */
+export function workerHeaders(): Record<string, string> {
+  const token = (process.env.SLICER_WORKER_TOKEN || "").trim();
+  return token ? { "X-Worker-Token": token } : {};
+}
+
 function asOrderStatus(value: string): OrderStatus {
   if (value === "paid" || value === "printing" || value === "shipped") return value;
   return "quoted";
@@ -143,6 +149,7 @@ async function sliceUpload(input: {
   try {
     response = await fetch(`${workerBaseUrl()}/slice`, {
       method: "POST",
+      headers: workerHeaders(),
       body,
       signal: AbortSignal.timeout(120_000),
     });
@@ -151,6 +158,14 @@ async function sliceUpload(input: {
       ok: false,
       error: "worker_unreachable",
       message: "The slicing worker is not reachable. Start it with docker compose and try again.",
+      mesh: null,
+    };
+  }
+  if (response.status === 401) {
+    return {
+      ok: false,
+      error: "worker_unauthorized",
+      message: "The slicing worker refused the shared token. Check SLICER_WORKER_TOKEN on both services.",
       mesh: null,
     };
   }

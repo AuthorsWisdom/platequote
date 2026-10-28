@@ -77,6 +77,7 @@ No sandbox buyer login is included here. Use the buyer from your own sandbox app
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string |
 | `SLICER_WORKER_URL` | Worker base URL, or `host:port` |
+| `SLICER_WORKER_TOKEN` | Shared secret sent as `X-Worker-Token`; the worker refuses `/slice` without it when its own copy is set. Unset for local work |
 | `UPLOAD_DIR` | Where uploaded meshes are stored |
 | `PAYPAL_ENV` | Must be `sandbox` |
 | `PAYPAL_CLIENT_ID` | Sandbox client id (public) |

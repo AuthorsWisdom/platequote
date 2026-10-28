@@ -6,7 +6,9 @@ import os
 import tempfile
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, UploadFile
+import hmac
+
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from slice_job import SliceError, engine_version, slice_file
@@ -15,6 +17,20 @@ from slice_job import SliceError, engine_version, slice_file
 MAX_BYTES = 25 * 1024 * 1024
 
 app = FastAPI(title="PlateQuote slicer", version="0.1.0")
+
+
+def require_worker_token(x_worker_token: str | None = Header(default=None)) -> None:
+    """Shared-secret gate for /slice.
+
+    When SLICER_WORKER_TOKEN is set (it is, on the public Render service), every
+    slice request must carry the same value in the X-Worker-Token header. Unset
+    means local development with no gate. /health stays open either way.
+    """
+    expected = os.environ.get("SLICER_WORKER_TOKEN", "")
+    if not expected:
+        return
+    if not x_worker_token or not hmac.compare_digest(x_worker_token, expected):
+        raise HTTPException(status_code=401, detail="worker token missing or wrong")
 
 
 @app.get("/health")
@@ -27,7 +43,7 @@ def health() -> dict:
     }
 
 
-@app.post("/slice")
+@app.post("/slice", dependencies=[Depends(require_worker_token)])
 async def slice_model(
     file: UploadFile = File(...),
     material: str = Form("pla"),
