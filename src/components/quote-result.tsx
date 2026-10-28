@@ -190,7 +190,6 @@ export function QuoteResult({ id }: { id: string }) {
             <p className="mt-1 text-muted-foreground">
               Order {quote.order.id}. Status: {quote.order.status}.
               {quote.order.paypalCaptureId ? ` Capture ${quote.order.paypalCaptureId}.` : ""}
-              {quote.order.payerEmail ? ` Buyer ${quote.order.payerEmail}.` : ""}
             </p>
             <Link href="/dashboard" className="mt-3 inline-block underline">
               Open the shop orders

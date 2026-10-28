@@ -1,11 +1,18 @@
-import { jsonError } from "@/lib/http";
+import { MAX_UPLOAD_BYTES } from "@/lib/constants";
+import { declaredBodyTooLarge, jsonError } from "@/lib/http";
 import { QuoteInputError, createQuote } from "@/lib/quote-service";
+import { quoteRateLimit } from "@/lib/rate-limit";
 import { purposeSchema } from "@/lib/validators";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 export async function POST(request: Request) {
+  const limited = quoteRateLimit(request);
+  if (limited) return limited;
+  if (declaredBodyTooLarge(request, MAX_UPLOAD_BYTES + 1024 * 1024)) {
+    return jsonError(413, "too_large", "That upload is over the 25 MB cap.");
+  }
   let form: FormData;
   try {
     form = await request.formData();
@@ -20,13 +27,17 @@ export async function POST(request: Request) {
     return jsonError(400, "bad_options", "Check the quantity and what the part is for.");
   }
   const bytes = Buffer.from(await file.arrayBuffer());
+  const materialId = String(form.get("materialId") || "").slice(0, 40);
+  const printerRaw = form.get("printerId");
+  const printerId = printerRaw ? String(printerRaw).slice(0, 40) : null;
+  const color = String(form.get("color") || "").slice(0, 40);
   try {
     const quote = await createQuote({
       bytes,
-      filename: file.name,
-      materialId: String(form.get("materialId") || ""),
-      printerId: form.get("printerId") ? String(form.get("printerId")) : null,
-      color: String(form.get("color") || ""),
+      filename: file.name.slice(0, 240),
+      materialId,
+      printerId,
+      color,
       quantity,
       rush: String(form.get("rush") || "") === "true",
       purpose: purpose.data,

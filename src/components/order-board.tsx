@@ -14,6 +14,10 @@ export function OrderBoard() {
 
   async function load() {
     const response = await fetch("/api/orders");
+    if (response.status === 401) {
+      window.location.assign("/login?next=/dashboard");
+      return;
+    }
     const payload = (await response.json()) as OrderDTO[] | { message?: string };
     if (!response.ok || !Array.isArray(payload)) {
       throw new Error(!Array.isArray(payload) ? payload.message || "Could not load orders." : "Could not load orders.");
@@ -109,6 +113,9 @@ export function OrderBoard() {
                   <p className="text-xs text-muted-foreground">
                     {order.quote.materialName} · {order.quote.color} · qty {order.quote.quantity}
                   </p>
+                  {order.payerEmail ? (
+                    <p className="text-xs text-muted-foreground">PayPal buyer {order.payerEmail}</p>
+                  ) : null}
                 </td>
                 <td className="px-3 py-3 text-muted-foreground">
                   {order.quote.filamentGrams != null ? formatGrams(order.quote.filamentGrams) : "—"}
@@ -151,6 +158,7 @@ function OrderBody({
       <p className="text-muted-foreground">
         {order.quote.materialName} · qty {order.quote.quantity} · {formatUsd(order.amountCents)}
       </p>
+      {order.payerEmail ? <p className="text-muted-foreground">PayPal buyer {order.payerEmail}</p> : null}
       <Advance order={order} busy={busy} onAdvance={onAdvance} />
     </div>
   );

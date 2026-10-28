@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { jsonError } from "@/lib/http";
+import { declaredBodyTooLarge, jsonError } from "@/lib/http";
 import { interpretPaypalEvent } from "@/lib/paypal-events";
 import {
   PaypalNotConfiguredError,
@@ -11,6 +11,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  if (declaredBodyTooLarge(request, 1_000_000)) return jsonError(413, "too_large", "Webhook body is too large.");
   let event: unknown;
   try {
     event = await request.json();
@@ -21,11 +22,7 @@ export async function POST(request: Request) {
   try {
     const verified = await verifyWebhook(request.headers, event);
     if (!verified) {
-      return jsonError(
-        401,
-        "unverified_webhook",
-        "Set PAYPAL_WEBHOOK_ID to verify signatures, or PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS=true for a local sandbox test.",
-      );
+      return jsonError(401, "unverified_webhook", "The webhook signature could not be verified.");
     }
   } catch (error) {
     if (error instanceof PaypalNotConfiguredError) {

@@ -34,9 +34,16 @@ export async function reviewPrint(input: ReviewInput): Promise<AiReviewDTO> {
     if (provider === "openai") return await openAiReview(input, apiKey);
     return await anthropicReview(input, apiKey);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "llm_failed";
-    return mockReview({ ...input, mockReason: message.slice(0, 180) });
+    return mockReview({ ...input, mockReason: safeFailureReason(error) });
   }
+}
+
+function safeFailureReason(error: unknown): string {
+  const message = error instanceof Error ? error.message : "llm_failed";
+  return message
+    .replace(/sk-[A-Za-z0-9_-]{8,}/g, "[redacted]")
+    .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
+    .slice(0, 180);
 }
 
 function userPayload(input: ReviewInput) {

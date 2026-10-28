@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { UserFacingError } from "@/lib/http";
 import type { MaterialDTO, PrinterDTO, ShopDTO } from "@/lib/types";
 
 const shopInclude = {
@@ -57,7 +58,7 @@ export async function getShopRecord() {
     orderBy: { createdAt: "asc" },
   });
   if (!shop) {
-    throw new Error("The demo shop is not seeded.");
+    throw new UserFacingError(503, "shop_unavailable", "The demo shop is not seeded.");
   }
   return shop;
 }
@@ -127,7 +128,7 @@ export async function updateShop(input: ShopUpdateInput): Promise<ShopDTO> {
       if (keptPrinters.has(printer.id)) continue;
       const used = await tx.quote.count({ where: { printerId: printer.id } });
       if (used > 0) {
-        throw new Error(`${printer.name} already has quotes, so it stays on the shop.`);
+        throw new UserFacingError(409, "shop_update_failed", `${printer.name} already has quotes, so it stays on the shop.`);
       }
       await tx.printer.delete({ where: { id: printer.id } });
     }
@@ -155,7 +156,11 @@ export async function updateShop(input: ShopUpdateInput): Promise<ShopDTO> {
       if (keptMaterials.has(material.id)) continue;
       const used = await tx.quote.count({ where: { materialId: material.id } });
       if (used > 0) {
-        throw new Error(`${material.name} already has quotes, so it stays on the shop.`);
+        throw new UserFacingError(
+          409,
+          "shop_update_failed",
+          `${material.name} already has quotes, so it stays on the shop.`,
+        );
       }
       await tx.material.delete({ where: { id: material.id } });
     }

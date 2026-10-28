@@ -16,6 +16,7 @@ export async function listOrders(): Promise<OrderDTO[]> {
     currency: order.currency,
     createdAt: order.createdAt.toISOString(),
     paidAt: order.paidAt?.toISOString() ?? null,
+    payerEmail: order.payerEmail,
     quote: {
       id: order.quote.id,
       originalFilename: order.quote.originalFilename,
