@@ -2,7 +2,7 @@
 
 PlateQuote is a quote-and-checkout page for a one-person 3D-print shop. A customer uploads an STL or 3MF. A separate slicer process returns filament weight, print time, and whether supports were generated. The price is that output times the shop's own rates. A written review explains printability and materials. It does not set the price. Checkout, when configured, uses the PayPal sandbox.
 
-This repository is the hackathon build for the PayPal AI Hackathon (Devpost deadline November 12, 2026, 12:00pm PT). The hosted demo runs on Render at `https://platequote-web.onrender.com` (free plan, deployed 2026-10-28); no custom domain is registered.
+This repository is the hackathon build for the PayPal AI Hackathon (Devpost deadline November 12, 2026, 12:00pm PT). The hosted demo runs on Render at `https://platequote.tech` (custom domain verified with a Render-issued certificate on 2026-10-29; `www` redirects to the root). The service also stays reachable at `https://platequote-web.onrender.com`, which is the host the PayPal sandbox webhook was registered against. Web service on the free plan, deployed 2026-10-28.
 
 ## What works
 
