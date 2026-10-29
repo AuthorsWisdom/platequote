@@ -91,6 +91,7 @@ model Order {
   currency        String    @default("USD")
   paypalOrderId   String?   @unique
   paypalCaptureId String?
+  paypalEnv       String?
   payerEmail      String?
   approvedAt      DateTime?
   paidAt          DateTime?

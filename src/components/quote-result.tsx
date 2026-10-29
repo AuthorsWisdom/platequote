@@ -18,6 +18,8 @@ import type { QuoteDTO } from "@/lib/types";
 type PaypalConfig = {
   enabled: boolean;
   clientId: string | null;
+  environment: "sandbox" | "live";
+  sdkUrl: string;
   message: string | null;
 };
 
@@ -186,7 +188,9 @@ export function QuoteResult({ id }: { id: string }) {
         <h2 className="font-heading text-2xl">Checkout</h2>
         {paid && quote.order ? (
           <div className="mt-3 text-sm">
-            <p className="font-medium">Paid in the PayPal sandbox.</p>
+            <p className="font-medium">
+              {quote.order.paypalEnv === "sandbox" ? "Paid in the PayPal sandbox." : "Paid with PayPal."}
+            </p>
             <p className="mt-1 text-muted-foreground">
               Order {quote.order.id}. Status: {quote.order.status}.
               {quote.order.paypalCaptureId ? ` Capture ${quote.order.paypalCaptureId}.` : ""}
@@ -197,7 +201,13 @@ export function QuoteResult({ id }: { id: string }) {
           </div>
         ) : quote.order && quote.status === "quoted" && paypal?.enabled && paypal.clientId ? (
           <div className="mt-3">
-            <PaypalCheckout orderId={quote.order.id} clientId={paypal.clientId} onPaid={() => load()} />
+            <PaypalCheckout
+              orderId={quote.order.id}
+              clientId={paypal.clientId}
+              environment={paypal.environment}
+              sdkUrl={paypal.sdkUrl}
+              onPaid={() => load()}
+            />
           </div>
         ) : (
           <p className="mt-3 text-sm text-muted-foreground">
@@ -207,8 +217,11 @@ export function QuoteResult({ id }: { id: string }) {
           </p>
         )}
         <p className="mt-4 text-xs text-muted-foreground">
-          Sandbox checkout only. Refunds and shipment tracking are not part of this build. PlateQuote does not
-          start or control a printer.
+          {paypal?.environment === "live"
+            ? "Payments go through PayPal. "
+            : "Sandbox checkout only. "}
+          Refunds and shipment tracking are handled by the shop outside PlateQuote. PlateQuote does not start or
+          control a printer.
         </p>
       </section>
     </div>

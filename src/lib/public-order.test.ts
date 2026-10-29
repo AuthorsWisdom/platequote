@@ -9,6 +9,7 @@ describe("toPublicOrder", () => {
       amountCents: 1200,
       paypalOrderId: "PAYPAL123",
       paypalCaptureId: "CAP123",
+      paypalEnv: "sandbox",
       payerEmail: "buyer@example.com",
       paidAt: "2026-10-28T00:00:00.000Z",
     });
