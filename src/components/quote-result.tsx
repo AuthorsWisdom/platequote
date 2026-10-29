@@ -138,7 +138,7 @@ export function QuoteResult({ id }: { id: string }) {
               <p className="mt-2 text-sm text-muted-foreground">
                 Profile {quote.profileName ?? "generic"}
                 {quote.engine ? ` via ${quote.engine}` : ""}. Treat it as about ±
-                {quote.estimateTolerancePct}% versus a shop-tuned profile. The shop can decline the job.
+                {quote.estimateTolerancePct}% versus a shop-tuned profile. We can decline the job and refund in full.
               </p>
               <dl className="mt-4 space-y-1.5 text-sm">
                 <Row
@@ -201,6 +201,13 @@ export function QuoteResult({ id }: { id: string }) {
           </div>
         ) : quote.order && quote.status === "quoted" && paypal?.enabled && paypal.clientId ? (
           <div className="mt-3">
+            <p className="mb-3 text-sm">
+              {paypal.environment === "live"
+                ? "Sold and fulfilled by Christopher Espinoza d/b/a PlateQuote, San Antonio, Texas. "
+                : ""}
+              Made to order. Refundable until the order shows Printing; defects reprinted or refunded within 14
+              days. By paying you agree to the <Link href="/terms">terms</Link>.
+            </p>
             <PaypalCheckout
               orderId={quote.order.id}
               clientId={paypal.clientId}
@@ -220,8 +227,10 @@ export function QuoteResult({ id }: { id: string }) {
           {paypal?.environment === "live"
             ? "Payments go through PayPal. "
             : "Sandbox checkout only. "}
-          Refunds and shipment tracking are handled by the shop outside PlateQuote. PlateQuote does not start or
-          control a printer.
+          {paypal?.environment === "live"
+            ? "Sold and fulfilled by Christopher Espinoza d/b/a PlateQuote. "
+            : "Nothing paid here is printed or shipped. "}
+          PlateQuote does not start or control a printer. <Link href="/terms">Terms, refunds, and privacy</Link>.
         </p>
       </section>
     </div>

@@ -4,6 +4,8 @@ import { ADMIN_COOKIE, adminAuthorized } from "@/lib/admin-session";
 
 const publicLinks = [
   { href: "/", label: "Quote" },
+  { href: "/terms", label: "Terms" },
+  { href: "/terms#privacy", label: "Privacy" },
   { href: "/login", label: "Shop admin" },
 ];
 

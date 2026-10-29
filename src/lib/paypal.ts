@@ -159,7 +159,9 @@ export async function createPaypalCheckout(localOrderId: string, environment: Pa
   }
 
   const value = (order.amountCents / 100).toFixed(2);
-  const description = `${order.shop.name}: ${order.quote.originalFilename} x ${order.quote.quantity}`.slice(0, 127);
+  // Live receipts name the seller of record, not the seeded demo shop name.
+  const seller = environment === "live" ? "PlateQuote (C. Espinoza)" : order.shop.name;
+  const description = `${seller}: ${order.quote.originalFilename} x ${order.quote.quantity}`.slice(0, 127);
   const created = await paypalFetch(environment, "/v2/checkout/orders", {
     method: "POST",
     body: JSON.stringify({
