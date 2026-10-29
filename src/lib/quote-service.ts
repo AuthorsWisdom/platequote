@@ -10,7 +10,8 @@ import { toPublicOrder } from "@/lib/public-order";
 import { meshFactsSchema, parseSlicerResult, type SlicerResponse } from "@/lib/slicer-result";
 import { getShopRecord, toMaterialDTO, toPrinterDTO } from "@/lib/shop";
 import type { MeshFactsDTO, OrderStatus, PriceBreakdownDTO, QuoteDTO, StoredReview } from "@/lib/types";
-import { inspectUpload, resolveStoredUpload } from "@/lib/uploads";
+import { loadModelBytes, pruneStaleUploads, storeUploadBytes } from "@/lib/upload-store";
+import { inspectUpload } from "@/lib/uploads";
 import { workerHeaders, workerMisconfigured } from "@/lib/worker-auth";
 
 const quoteInclude = {
@@ -111,11 +112,7 @@ export async function getQuote(id: string): Promise<QuoteDTO | null> {
 }
 
 export async function quoteModelFile(id: string) {
-  const quote = await prisma.quote.findUnique({ where: { id } });
-  if (!quote) return null;
-  const full = resolveStoredUpload(uploadDirectory(), quote.storedFilename);
-  if (!full) return null;
-  return { full, filename: quote.originalFilename, stored: quote.storedFilename };
+  return loadModelBytes(id, uploadDirectory());
 }
 
 async function sliceUpload(input: {
@@ -249,8 +246,10 @@ export async function createQuote(input: {
   if (!printer) throw new QuoteInputError("Add a printer before quoting.");
 
   const storedFilename = `${randomUUID()}${extension}`;
+  // Disk is a local cache only: the free web service's disk is wiped on every restart.
   await mkdir(uploadDirectory(), { recursive: true });
   await writeFile(path.join(uploadDirectory(), storedFilename), input.bytes);
+  await pruneStaleUploads().catch(() => 0);
 
   const created = await prisma.quote.create({
     data: {
@@ -266,6 +265,7 @@ export async function createQuote(input: {
       purpose: input.purpose,
     },
   });
+  await storeUploadBytes(created.id, input.bytes);
 
   const sliced = await sliceUpload({
     bytes: input.bytes,
