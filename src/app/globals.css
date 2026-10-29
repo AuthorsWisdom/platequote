@@ -134,3 +134,10 @@ paypal-button {
     @apply font-sans;
   }
 }
+/* Terms page */
+.legal h1 { font-size: 1.875rem; line-height: 1.2; margin-bottom: 0.5rem; }
+.legal h2 { font-size: 1.25rem; margin-top: 2rem; margin-bottom: 0.5rem; }
+.legal p, .legal ul { margin-bottom: 0.75rem; line-height: 1.6; }
+.legal ul { list-style: disc; padding-left: 1.25rem; }
+.legal li { margin-bottom: 0.375rem; }
+.legal a { text-decoration: underline; text-underline-offset: 2px; }
