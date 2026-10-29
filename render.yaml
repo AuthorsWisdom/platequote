@@ -1,8 +1,10 @@
 # Render blueprint for PlateQuote (free plans, ruled 2026-10-28 "free plan for now").
 # Syncing this blueprint is the owner's step. Editing the file does not deploy by itself.
-# Free web services have an ephemeral disk and sleep after 15 minutes idle, so uploads
-# do not survive a restart and the first request after a sleep is slow. The free Postgres
-# has a time limit on Render's side; upgrade it before judging if it is close to expiry.
+# Free web services have an ephemeral disk and sleep after 15 minutes idle, so the first
+# request after a sleep is slow. Uploaded meshes are stored in Postgres (QuoteFile) so a
+# paid order's model survives a restart; UPLOAD_DIR is only a local cache. Unpaid uploads
+# are pruned from the database after 48 hours. The free Postgres has a time limit on
+# Render's side; upgrade it before judging if it is close to expiry.
 # The slicer worker runs as a second free web service because private services have no
 # free plan. Set SLICER_WORKER_URL in the dashboard if Render suffixes the worker's name.
 #

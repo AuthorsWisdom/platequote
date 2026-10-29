@@ -84,7 +84,7 @@ Dev values below are not production secrets. Copy `.env.example` for local `npm 
 | `SLICER_WORKER_TOKEN` | Yes, generated and shared | Shared secret sent as `X-Worker-Token`. Both services must have the same value. On Render it lives in the `platequote-worker-auth` env group |
 | `ADMIN_PASSWORD` | Yes, you set it (`sync: false`) | Shop admin password. Unset locks admin. The dev value is refused on Render |
 | `ADMIN_SESSION_SECRET` | Yes, generated | HMAC key for the admin session cookie. Unset locks admin |
-| `UPLOAD_DIR` | Set in the blueprint | Where uploaded meshes are stored |
+| `UPLOAD_DIR` | Set in the blueprint | Local cache for uploaded meshes; the copy of record is the `QuoteFile` table in Postgres |
 | `PAYPAL_ENV` | Yes, `sandbox` | Default environment for hosts not in `PAYPAL_LIVE_HOSTS`: `sandbox` or `live` |
 | `PAYPAL_LIVE_HOSTS` | Set in the blueprint | Hostnames that use live PayPal (`platequote.tech,www.platequote.tech`) |
 | `PAYPAL_CLIENT_ID` | For sandbox checkout | Sandbox client id (public) |
@@ -132,7 +132,7 @@ Covers PrusaSlicer G-code summary parsing (grams, time, support extrusion) and t
 
 ## Render
 
-`render.yaml` describes two free web services (the Next.js app and the Docker slicer worker) and a free Postgres. The hosted demo is already on Render. Syncing the blueprint is how new variables reach those services. Editing this file does not deploy by itself. Free instances have an ephemeral filesystem, so uploads live in `/tmp` and do not survive a restart, and a free service sleeps after 15 idle minutes (the first request after that is slow). The worker is reachable on its public `onrender.com` URL; set `SLICER_WORKER_URL` in the dashboard if Render suffixes the name.
+`render.yaml` describes two free web services (the Next.js app and the Docker slicer worker) and a free Postgres. The hosted demo is already on Render. Syncing the blueprint is how new variables reach those services. Editing this file does not deploy by itself. Free instances have an ephemeral filesystem, so uploaded meshes are stored in Postgres (`QuoteFile`) and `/tmp` is only a cache; unpaid uploads are pruned from the database after 48 hours and paid orders keep theirs. A free service sleeps after 15 idle minutes (the first request after that is slow). The worker is reachable on its public `onrender.com` URL; set `SLICER_WORKER_URL` in the dashboard if Render suffixes the name.
 
 Set `ADMIN_PASSWORD` and the PayPal and LLM secrets in the Render dashboard when the blueprint prompts for them. Do not put secret values in the blueprint. `ADMIN_SESSION_SECRET` and `SLICER_WORKER_TOKEN` are generated. The worker token is one value in the `platequote-worker-auth` env group, linked to both services. If a service-level `SLICER_WORKER_TOKEN` is still present from an older sync, remove it so both services use the group value. Hackathon credits, if any, are claimed by the owner.
 

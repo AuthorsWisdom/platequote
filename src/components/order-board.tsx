@@ -116,6 +116,14 @@ export function OrderBoard() {
                   {order.payerEmail ? (
                     <p className="text-xs text-muted-foreground">PayPal buyer {order.payerEmail}</p>
                   ) : null}
+                  {order.status !== "quoted" ? (
+                    <a
+                      href={`/api/quotes/${order.quote.id}/model?download=1`}
+                      className="text-xs underline underline-offset-2"
+                    >
+                      Download model
+                    </a>
+                  ) : null}
                 </td>
                 <td className="px-3 py-3 text-muted-foreground">
                   {order.quote.filamentGrams != null ? formatGrams(order.quote.filamentGrams) : "—"}
@@ -162,6 +170,11 @@ function OrderBody({
         {order.quote.materialName} · qty {order.quote.quantity} · {formatUsd(order.amountCents)}
       </p>
       {order.payerEmail ? <p className="text-muted-foreground">PayPal buyer {order.payerEmail}</p> : null}
+      {order.status !== "quoted" ? (
+        <a href={`/api/quotes/${order.quote.id}/model?download=1`} className="text-xs underline underline-offset-2">
+          Download model
+        </a>
+      ) : null}
       <Advance order={order} busy={busy} onAdvance={onAdvance} />
     </div>
   );

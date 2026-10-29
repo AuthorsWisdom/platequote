@@ -80,6 +80,18 @@ model Quote {
   material         Material @relation(fields: [materialId], references: [id])
   printer          Printer? @relation(fields: [printerId], references: [id])
   order            Order?
+  file             QuoteFile?
+}
+
+/// The uploaded mesh bytes. Lives in Postgres so a paid order's model survives a
+/// restart of the web service (the free disk is ephemeral). Unpaid files are pruned
+/// after UNPAID_UPLOAD_TTL_HOURS; paid, printing and shipped orders keep theirs.
+model QuoteFile {
+  quoteId   String   @id
+  bytes     Bytes
+  sizeBytes Int
+  createdAt DateTime @default(now())
+  quote     Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 }
 
 model Order {
