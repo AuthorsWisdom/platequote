@@ -250,7 +250,7 @@ function ReviewBlock({
       <div className="rounded-2xl border border-border bg-card p-5">
         <div className="flex items-center justify-between gap-2">
           <h2 className="font-heading text-2xl">Print notes</h2>
-          <Badge variant="outline">{review.mocked ? "Mock review" : review.provider}</Badge>
+          <Badge variant="outline">{review.mocked ? "Built-in review" : review.provider}</Badge>
         </div>
         <p className="mt-3 text-sm leading-6">{review.summary}</p>
         <p className="mt-3 text-sm text-muted-foreground">{review.orientationNote}</p>
