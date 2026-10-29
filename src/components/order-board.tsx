@@ -125,6 +125,9 @@ export function OrderBoard() {
                 <td className="px-3 py-3">{formatUsd(order.amountCents)}</td>
                 <td className="px-3 py-3">
                   <StatusBadge status={order.status} />
+                  {order.paypalEnv === "sandbox" && order.status !== "quoted" ? (
+                    <p className="mt-1 text-xs text-muted-foreground">Sandbox payment, no real money</p>
+                  ) : null}
                 </td>
                 <td className="px-3 py-3">
                   <Advance order={order} busy={busyId === order.id} onAdvance={() => advance(order)} />

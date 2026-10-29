@@ -50,6 +50,17 @@ services:
         sync: false
       - key: PAYPAL_WEBHOOK_ID
         sync: false
+      # Live PayPal for the custom domain only. The onrender.com address stays on the
+      # sandbox (ruled 2026-10-29 for the Dec 1 to 15 judging window). Fill the live
+      # keys in the dashboard; they are never in this file.
+      - key: PAYPAL_LIVE_HOSTS
+        value: platequote.tech,www.platequote.tech
+      - key: PAYPAL_LIVE_CLIENT_ID
+        sync: false
+      - key: PAYPAL_LIVE_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_LIVE_WEBHOOK_ID
+        sync: false
       - key: LLM_PROVIDER
         value: mock
       - key: LLM_API_KEY

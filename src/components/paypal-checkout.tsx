@@ -32,9 +32,12 @@ declare global {
   }
 }
 
-function loadSdk(): Promise<void> {
-  if (window.paypal?.createInstance) return Promise.resolve();
+function loadSdk(sdkUrl: string): Promise<void> {
   const existing = document.querySelector<HTMLScriptElement>("script[data-platequote-paypal]");
+  if (existing && existing.src !== sdkUrl) {
+    return Promise.reject(new Error("A different PayPal environment is already loaded. Reload the page."));
+  }
+  if (window.paypal?.createInstance) return Promise.resolve();
   if (existing) {
     return new Promise((resolve, reject) => {
       existing.addEventListener("load", () => resolve(), { once: true });
@@ -43,11 +46,11 @@ function loadSdk(): Promise<void> {
   }
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = "https://www.sandbox.paypal.com/web-sdk/v6/core";
+    script.src = sdkUrl;
     script.async = true;
     script.dataset.platequotePaypal = "1";
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Could not load the PayPal sandbox script."));
+    script.onerror = () => reject(new Error("Could not load the PayPal script."));
     document.head.appendChild(script);
   });
 }
@@ -55,10 +58,14 @@ function loadSdk(): Promise<void> {
 export function PaypalCheckout({
   orderId,
   clientId,
+  environment,
+  sdkUrl,
   onPaid,
 }: {
   orderId: string;
   clientId: string;
+  environment: "sandbox" | "live";
+  sdkUrl: string;
   onPaid: () => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -78,7 +85,7 @@ export function PaypalCheckout({
       setBusy(true);
       setMessage(null);
       try {
-        await loadSdk();
+        await loadSdk(sdkUrl);
         if (!window.paypal || cancelled) return;
         const sdk = await window.paypal.createInstance({
           clientId,
@@ -113,7 +120,7 @@ export function PaypalCheckout({
       }
     };
 
-    loadSdk()
+    loadSdk(sdkUrl)
       .then(() => {
         if (cancelled) return;
         button = document.createElement("paypal-button");
@@ -133,13 +140,14 @@ export function PaypalCheckout({
       button?.removeEventListener("click", onClick);
       host.replaceChildren();
     };
-  }, [clientId, orderId]);
+  }, [clientId, orderId, sdkUrl]);
 
   return (
     <div className="space-y-3">
       <div ref={hostRef} className={busy ? "pointer-events-none opacity-60" : undefined} />
       <p className="text-xs text-muted-foreground">
-        Sandbox only. The amount is the quoted total stored on the server. The browser cannot change it.
+        {environment === "sandbox" ? "Sandbox checkout, no real money moves. " : ""}
+        The amount is the quoted total stored on the server. The browser cannot change it.
       </p>
       {message ? <p className="text-sm text-destructive">{message}</p> : null}
     </div>

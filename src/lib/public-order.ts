@@ -6,6 +6,7 @@ export type PublicOrder = {
   amountCents: number;
   paypalOrderId: string | null;
   paypalCaptureId: string | null;
+  paypalEnv: string | null;
   paidAt: string | null;
 };
 
@@ -16,6 +17,7 @@ export function toPublicOrder(order: {
   amountCents: number;
   paypalOrderId: string | null;
   paypalCaptureId: string | null;
+  paypalEnv: string | null;
   payerEmail: string | null;
   paidAt: string | null;
 }): PublicOrder {
@@ -25,6 +27,7 @@ export function toPublicOrder(order: {
     amountCents: order.amountCents,
     paypalOrderId: order.paypalOrderId,
     paypalCaptureId: order.paypalCaptureId,
+    paypalEnv: order.paypalEnv,
     paidAt: order.paidAt,
   };
 }

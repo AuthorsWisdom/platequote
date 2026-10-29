@@ -1,6 +1,6 @@
 # PlateQuote
 
-PlateQuote is a quote-and-checkout page for a one-person 3D-print shop. A customer uploads an STL or 3MF. A separate slicer process returns filament weight, print time, and whether supports were generated. The price is that output times the shop's own rates. A written review explains printability and materials. It does not set the price. Checkout, when configured, uses the PayPal sandbox.
+PlateQuote is a quote-and-checkout page for a one-person 3D-print shop. A customer uploads an STL or 3MF. A separate slicer process returns filament weight, print time, and whether supports were generated. The price is that output times the shop's own rates. A written review explains printability and materials. It does not set the price. Checkout, when configured, uses PayPal: the sandbox by default, live on the hosts listed in `PAYPAL_LIVE_HOSTS`.
 
 This repository is the hackathon build for the PayPal AI Hackathon (Devpost deadline November 12, 2026, 12:00pm PT). The hosted demo runs on Render at `https://platequote.tech` (custom domain verified with a Render-issued certificate on 2026-10-29; `www` redirects to the root). The service also stays reachable at `https://platequote-web.onrender.com`, which is the host the PayPal sandbox webhook was registered against. Web service on the free plan, deployed 2026-10-28.
 
@@ -11,7 +11,7 @@ This repository is the hackathon build for the PayPal AI Hackathon (Devpost dead
 - Slicing worker: PrusaSlicer 2.8.1 runs as its own process inside Docker. The response is JSON (grams, time, supports, bounding box) plus mesh facts from trimesh (bed fit, watertightness, overhang share, thin-wall flag).
 - Deterministic pricing. Quantity multiplies material and machine time. A shop minimum replaces a smaller sum. Rush is a flat fee added after that. Switching material after a slice rescales filament mass from the sliced volume and keeps the print time, and the page says so.
 - Printability review and material advice. With `LLM_PROVIDER=mock` or no API key, a built-in reviewer writes the notes from the mesh facts and slicer JSON. OpenAI-compatible and Anthropic providers are wired behind env vars. Dollar amounts the model tries to write are stripped. Comparison prices are attached afterward by the pricing engine.
-- PayPal sandbox checkout with JavaScript SDK v6 and Orders v2. The server creates the order and captures it. Webhooks for `CHECKOUT.ORDER.APPROVED` (server captures) and `PAYMENT.CAPTURE.COMPLETED` (marks paid) are implemented. Without keys, checkout shows a clear message and quotes still work.
+- PayPal checkout with JavaScript SDK v6 and Orders v2, sandbox or live per host. The server creates the order and captures it. Webhooks for `CHECKOUT.ORDER.APPROVED` (server captures) and `PAYMENT.CAPTURE.COMPLETED` (marks paid) are implemented. Without keys, checkout shows a clear message and quotes still work.
 - Shop orders table: quoted, paid, printing, shipped. Printing and shipped are local status marks.
 
 ## What is stubbed
@@ -57,17 +57,19 @@ On the quote page, use one of the sample buttons or upload a file from `samples/
 
 You should see grams, time, a price breakdown, and a review. The overhang hook should report supports. The price is an estimate from a generic 0.20 mm / 15% infill / 0.4 mm nozzle profile, shown with the shop's tolerance (seeded at ±15%). It is not a tuned printer profile.
 
-## PayPal sandbox
+## PayPal
+
+Sandbox, the default everywhere:
 
 1. In the PayPal Developer Dashboard, create a sandbox app and a sandbox buyer.
 2. Put `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` in `.env`. Keep `PAYPAL_ENV=sandbox`.
 3. Recreate the web container so it picks up the env: `docker compose up -d --build web`.
-4. Price a part, then use the PayPal button and the sandbox buyer. The button loads `https://www.sandbox.paypal.com/web-sdk/v6/core`. The server calls `https://api-m.sandbox.paypal.com` only.
+4. Price a part, then use the PayPal button and the sandbox buyer. The button loads `https://www.sandbox.paypal.com/web-sdk/v6/core`. The server calls `https://api-m.sandbox.paypal.com`.
 5. After capture, the order is paid and shows on `/dashboard` once you are signed in as the shop admin.
 
-This build rejects any PayPal environment other than sandbox.
+Live, per host: `PAYPAL_LIVE_HOSTS` is a comma-separated list of hostnames (read from the request's `Host` header) that use live PayPal with `PAYPAL_LIVE_CLIENT_ID`, `PAYPAL_LIVE_CLIENT_SECRET` and `PAYPAL_LIVE_WEBHOOK_ID`. Every other host keeps the sandbox keys. The hosted demo lists `platequote.tech` and `www.platequote.tech`, so the custom domain takes real payments while `platequote-web.onrender.com` stays on the sandbox. `PAYPAL_ENV=live` makes live the default for every host instead. The two key sets never mix: an order records which environment created its PayPal order (`paypalEnv`), a capture from the other environment is refused with 409, and the admin order list marks sandbox payments as "no real money".
 
-Webhooks are the backup path if the browser closes after approval. Register the listener URL in the sandbox app and set `PAYPAL_WEBHOOK_ID`. Signatures are verified against PayPal. For a hand-posted local fixture only, set `PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS=true` while running `npm run dev`. That flag is ignored when `NODE_ENV=production`, which covers Docker, `next start`, and Render. `CHECKOUT.ORDER.APPROVED` triggers a server capture. `PAYMENT.CAPTURE.COMPLETED` marks the order paid when the amount matches the quote. A mismatch does not mark it paid.
+Webhooks are the backup path if the browser closes after approval. Register the listener URL in the sandbox app and set `PAYPAL_WEBHOOK_ID`; for live, register it in the live app and set `PAYPAL_LIVE_WEBHOOK_ID`. Each signature is verified against every environment that has a webhook id, and the one that verifies decides which PayPal the capture call goes to. For a hand-posted local fixture only, set `PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS=true` while running `npm run dev`. That flag is ignored when `NODE_ENV=production`, which covers Docker, `next start`, and Render. `CHECKOUT.ORDER.APPROVED` triggers a server capture. `PAYMENT.CAPTURE.COMPLETED` marks the order paid when the amount matches the quote. A mismatch does not mark it paid.
 
 No sandbox buyer login is included here. Use the buyer from your own sandbox app.
 
@@ -83,10 +85,14 @@ Dev values below are not production secrets. Copy `.env.example` for local `npm 
 | `ADMIN_PASSWORD` | Yes, you set it (`sync: false`) | Shop admin password. Unset locks admin. The dev value is refused on Render |
 | `ADMIN_SESSION_SECRET` | Yes, generated | HMAC key for the admin session cookie. Unset locks admin |
 | `UPLOAD_DIR` | Set in the blueprint | Where uploaded meshes are stored |
-| `PAYPAL_ENV` | Yes, `sandbox` | Must be `sandbox` |
-| `PAYPAL_CLIENT_ID` | For checkout | Sandbox client id (public) |
-| `PAYPAL_CLIENT_SECRET` | For checkout | Sandbox secret. Server only |
-| `PAYPAL_WEBHOOK_ID` | For webhooks | Sandbox webhook id for signature checks |
+| `PAYPAL_ENV` | Yes, `sandbox` | Default environment for hosts not in `PAYPAL_LIVE_HOSTS`: `sandbox` or `live` |
+| `PAYPAL_LIVE_HOSTS` | Set in the blueprint | Hostnames that use live PayPal (`platequote.tech,www.platequote.tech`) |
+| `PAYPAL_CLIENT_ID` | For sandbox checkout | Sandbox client id (public) |
+| `PAYPAL_CLIENT_SECRET` | For sandbox checkout | Sandbox secret. Server only |
+| `PAYPAL_WEBHOOK_ID` | For sandbox webhooks | Sandbox webhook id for signature checks |
+| `PAYPAL_LIVE_CLIENT_ID` | For live checkout | Live client id (public), from the live REST app |
+| `PAYPAL_LIVE_CLIENT_SECRET` | For live checkout | Live secret. Server only, never in a file |
+| `PAYPAL_LIVE_WEBHOOK_ID` | For live webhooks | Live webhook id for signature checks |
 | `PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS` | Do not set | `true` only for unsigned posts to `npm run dev`. Ignored in production |
 | `LLM_PROVIDER` | Optional (`mock` in the blueprint) | `mock`, `openai`, or `anthropic` |
 | `LLM_API_KEY` | Optional | Blank falls back to the mock reviewer |
@@ -105,7 +111,7 @@ The public site is the quote flow and PayPal checkout. Shop admin is a password 
 - The buyer's PayPal email is stored for the admin orders list. The public quote page and `GET /api/quotes/[id]` do not include it.
 - Quote creation is limited to 10 requests per 10 minutes per IP and 30 per 10 minutes for the whole instance. Admin login is limited to 8 attempts per 15 minutes per IP. The limiter is in memory, which fits a single free instance.
 - Uploads are capped at 25 MB, must look like STL or 3MF, and are stored under a generated filename. Download paths cannot leave the upload directory.
-- Responses send a Content-Security-Policy that allows the PayPal sandbox JS SDK v6 (`sandbox.paypal.com` and `paypal.com`) and the bundled three.js preview, plus HSTS, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy: strict-origin-when-cross-origin`.
+- Responses send a Content-Security-Policy that allows the PayPal JS SDK v6 (`sandbox.paypal.com` and `paypal.com`) and the bundled three.js preview, plus HSTS, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy: strict-origin-when-cross-origin`.
 - Unexpected errors are logged on the server and returned as a short message. PayPal webhooks are checked with PayPal's signature API when `PAYPAL_WEBHOOK_ID` is set. `PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS` cannot turn that off in production.
 
 ## Tests

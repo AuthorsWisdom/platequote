@@ -132,6 +132,7 @@ export type QuoteDTO = {
     amountCents: number;
     paypalOrderId: string | null;
     paypalCaptureId: string | null;
+    paypalEnv: string | null;
     paidAt: string | null;
   } | null;
 };
@@ -144,6 +145,7 @@ export type OrderDTO = {
   createdAt: string;
   paidAt: string | null;
   payerEmail: string | null;
+  paypalEnv: string | null;
   quote: {
     id: string;
     originalFilename: string;

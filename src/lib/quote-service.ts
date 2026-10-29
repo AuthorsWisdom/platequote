@@ -93,6 +93,7 @@ export function toQuoteDTO(quote: QuoteRecord): QuoteDTO {
           amountCents: quote.order.amountCents,
           paypalOrderId: quote.order.paypalOrderId,
           paypalCaptureId: quote.order.paypalCaptureId,
+          paypalEnv: quote.order.paypalEnv,
           payerEmail: quote.order.payerEmail,
           paidAt: quote.order.paidAt?.toISOString() ?? null,
         })

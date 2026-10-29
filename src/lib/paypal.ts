@@ -1,62 +1,66 @@
 import { prisma } from "@/lib/db";
 import { centsFromPaypalValue } from "@/lib/paypal-events";
 import { unverifiedWebhooksPermitted } from "@/lib/paypal-policy";
-
-const SANDBOX_API = "https://api-m.sandbox.paypal.com";
+import {
+  PAYPAL_ENVIRONMENTS,
+  PAYPAL_HOSTS,
+  defaultPaypalEnvironment,
+  paypalCredentials,
+  type PaypalEnvironment,
+} from "@/lib/paypal-env";
 
 export class PaypalNotConfiguredError extends Error {
-  constructor(message = "PayPal sandbox keys are not configured.") {
+  constructor(message = "PayPal keys are not configured.") {
     super(message);
     this.name = "PaypalNotConfiguredError";
   }
 }
 
 type TokenCache = { token: string; expiresAt: number };
-let tokenCache: TokenCache | null = null;
+const tokenCache = new Map<PaypalEnvironment, TokenCache>();
 
-export function paypalPublicConfig() {
-  const clientId = process.env.PAYPAL_CLIENT_ID?.trim() ?? "";
-  const secret = process.env.PAYPAL_CLIENT_SECRET?.trim() ?? "";
-  const environment = (process.env.PAYPAL_ENV || "sandbox").trim().toLowerCase();
-  if (environment !== "sandbox") {
-    return {
-      enabled: false,
-      clientId: null as string | null,
-      environment: "sandbox" as const,
-      message: "This build only talks to the PayPal sandbox. Set PAYPAL_ENV=sandbox.",
-    };
-  }
+export type PaypalPublicConfig = {
+  enabled: boolean;
+  clientId: string | null;
+  environment: PaypalEnvironment;
+  sdkUrl: string;
+  message: string | null;
+};
+
+/** What the browser may know: the client id and which PayPal it talks to. Never the secret. */
+export function paypalPublicConfig(environment: PaypalEnvironment): PaypalPublicConfig {
+  const { clientId, secret } = paypalCredentials(environment);
+  const sdkUrl = PAYPAL_HOSTS[environment].sdk;
   if (!clientId || !secret) {
+    const names =
+      environment === "live"
+        ? "PAYPAL_LIVE_CLIENT_ID and PAYPAL_LIVE_CLIENT_SECRET"
+        : "PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET";
     return {
       enabled: false,
       clientId: null,
-      environment: "sandbox" as const,
-      message:
-        "PayPal sandbox keys are not set. Add PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET to enable checkout. Quotes still work without them.",
+      environment,
+      sdkUrl,
+      message: `PayPal ${environment} keys are not set. Add ${names} to enable checkout. Quotes still work without them.`,
     };
   }
-  return {
-    enabled: true,
-    clientId,
-    environment: "sandbox" as const,
-    message: null as string | null,
-  };
+  return { enabled: true, clientId, environment, sdkUrl, message: null };
 }
 
-function assertSandboxConfigured() {
-  const config = paypalPublicConfig();
-  if (!config.enabled || !config.clientId) {
-    throw new PaypalNotConfiguredError(config.message ?? "PayPal sandbox is not configured.");
+function assertConfigured(environment: PaypalEnvironment) {
+  const config = paypalPublicConfig(environment);
+  const { secret } = paypalCredentials(environment);
+  if (!config.enabled || !config.clientId || !secret) {
+    throw new PaypalNotConfiguredError(config.message ?? `PayPal ${environment} is not configured.`);
   }
-  const secret = process.env.PAYPAL_CLIENT_SECRET?.trim();
-  if (!secret) throw new PaypalNotConfiguredError();
   return { clientId: config.clientId, secret };
 }
 
-async function accessToken(): Promise<string> {
-  const { clientId, secret } = assertSandboxConfigured();
-  if (tokenCache && tokenCache.expiresAt > Date.now() + 30_000) return tokenCache.token;
-  const response = await fetch(`${SANDBOX_API}/v1/oauth2/token`, {
+async function accessToken(environment: PaypalEnvironment): Promise<string> {
+  const { clientId, secret } = assertConfigured(environment);
+  const cached = tokenCache.get(environment);
+  if (cached && cached.expiresAt > Date.now() + 30_000) return cached.token;
+  const response = await fetch(`${PAYPAL_HOSTS[environment].api}/v1/oauth2/token`, {
     method: "POST",
     headers: {
       Authorization: `Basic ${Buffer.from(`${clientId}:${secret}`).toString("base64")}`,
@@ -66,18 +70,18 @@ async function accessToken(): Promise<string> {
   });
   const body = (await response.json()) as { access_token?: string; expires_in?: number };
   if (!response.ok || !body.access_token) {
-    throw new Error("PayPal sandbox refused the client credentials.");
+    throw new Error(`PayPal ${environment} refused the client credentials.`);
   }
-  tokenCache = {
+  tokenCache.set(environment, {
     token: body.access_token,
     expiresAt: Date.now() + (body.expires_in ?? 300) * 1000,
-  };
+  });
   return body.access_token;
 }
 
-async function paypalFetch(path: string, init?: RequestInit) {
-  const token = await accessToken();
-  const response = await fetch(`${SANDBOX_API}${path}`, {
+async function paypalFetch(environment: PaypalEnvironment, path: string, init?: RequestInit) {
+  const token = await accessToken(environment);
+  const response = await fetch(`${PAYPAL_HOSTS[environment].api}${path}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -131,8 +135,8 @@ function extractCapture(body: Record<string, unknown> | null): CaptureDetails | 
   return null;
 }
 
-export async function createPaypalCheckout(localOrderId: string) {
-  assertSandboxConfigured();
+export async function createPaypalCheckout(localOrderId: string, environment: PaypalEnvironment) {
+  assertConfigured(environment);
   const order = await prisma.order.findUnique({
     where: { id: localOrderId },
     include: { quote: true, shop: true },
@@ -144,12 +148,19 @@ export async function createPaypalCheckout(localOrderId: string) {
     return { ok: false as const, status: 409, message: "This order is no longer waiting for payment." };
   }
   if (order.paypalOrderId) {
+    if (order.paypalEnv && order.paypalEnv !== environment) {
+      return {
+        ok: false as const,
+        status: 409,
+        message: `This order already has a PayPal ${order.paypalEnv} checkout. Open it on the address where it was started.`,
+      };
+    }
     return { ok: true as const, paypalOrderId: order.paypalOrderId };
   }
 
   const value = (order.amountCents / 100).toFixed(2);
   const description = `${order.shop.name}: ${order.quote.originalFilename} x ${order.quote.quantity}`.slice(0, 127);
-  const created = await paypalFetch("/v2/checkout/orders", {
+  const created = await paypalFetch(environment, "/v2/checkout/orders", {
     method: "POST",
     body: JSON.stringify({
       intent: "CAPTURE",
@@ -167,12 +178,12 @@ export async function createPaypalCheckout(localOrderId: string) {
     return {
       ok: false as const,
       status: 502,
-      message: externalMessage(created.body?.message, "PayPal could not create the sandbox order."),
+      message: externalMessage(created.body?.message, "PayPal could not create the order."),
     };
   }
   await prisma.order.update({
     where: { id: order.id },
-    data: { paypalOrderId },
+    data: { paypalOrderId, paypalEnv: environment },
   });
   return { ok: true as const, paypalOrderId };
 }
@@ -199,17 +210,24 @@ async function markQuotedOrderPaid(input: {
   });
 }
 
-export async function capturePaypalCheckout(paypalOrderId: string) {
-  assertSandboxConfigured();
+export async function capturePaypalCheckout(paypalOrderId: string, environment: PaypalEnvironment) {
+  assertConfigured(environment);
   const order = await prisma.order.findUnique({ where: { paypalOrderId } });
   if (!order) {
     return { ok: false as const, status: 404, message: "No PlateQuote order matches that PayPal order." };
+  }
+  if (order.paypalEnv && order.paypalEnv !== environment) {
+    return {
+      ok: false as const,
+      status: 409,
+      message: `This PayPal order was started in the ${order.paypalEnv} environment and cannot be captured here.`,
+    };
   }
   if (order.status !== "quoted") {
     return { ok: true as const, already: true, status: order.status };
   }
 
-  let result = await paypalFetch(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, {
+  let result = await paypalFetch(environment, `/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, {
     method: "POST",
     body: "{}",
   });
@@ -218,7 +236,7 @@ export async function capturePaypalCheckout(paypalOrderId: string) {
     ? (result.body.details[0] as { issue?: string } | undefined)?.issue
     : undefined;
   if (!result.ok && issue === "ORDER_ALREADY_CAPTURED") {
-    result = await paypalFetch(`/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}`, {
+    result = await paypalFetch(environment, `/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}`, {
       method: "GET",
     });
     capture = extractCapture(result.body);
@@ -292,14 +310,27 @@ function externalMessage(value: unknown, fallback: string): string {
   return cleaned;
 }
 
-export async function verifyWebhook(headers: Headers, event: unknown): Promise<boolean> {
-  const webhookId = process.env.PAYPAL_WEBHOOK_ID?.trim();
-  if (!webhookId) {
-    return unverifiedWebhooksPermitted();
+/**
+ * Verifies a webhook signature against every environment that has a webhook id and
+ * returns the environment that vouched for it, or null. With no webhook id configured
+ * anywhere, the local unsigned-fixture switch decides (never in production).
+ */
+export async function verifyWebhook(headers: Headers, event: unknown): Promise<PaypalEnvironment | null> {
+  const candidates = PAYPAL_ENVIRONMENTS.filter((environment) => paypalCredentials(environment).webhookId);
+  if (candidates.length === 0) {
+    return unverifiedWebhooksPermitted() ? defaultPaypalEnvironment() : null;
   }
-  assertSandboxConfigured();
-  const token = await accessToken();
-  const response = await fetch(`${SANDBOX_API}/v1/notifications/verify-webhook-signature`, {
+  for (const environment of candidates) {
+    if (await verifyWebhookIn(environment, headers, event)) return environment;
+  }
+  return null;
+}
+
+async function verifyWebhookIn(environment: PaypalEnvironment, headers: Headers, event: unknown): Promise<boolean> {
+  const { webhookId } = paypalCredentials(environment);
+  assertConfigured(environment);
+  const token = await accessToken(environment);
+  const response = await fetch(`${PAYPAL_HOSTS[environment].api}/v1/notifications/verify-webhook-signature`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,

@@ -19,9 +19,10 @@ export async function POST(request: Request) {
     return jsonError(400, "bad_json", "Webhook body was not JSON.");
   }
 
+  let environment: Awaited<ReturnType<typeof verifyWebhook>>;
   try {
-    const verified = await verifyWebhook(request.headers, event);
-    if (!verified) {
+    environment = await verifyWebhook(request.headers, event);
+    if (!environment) {
       return jsonError(401, "unverified_webhook", "The webhook signature could not be verified.");
     }
   } catch (error) {
@@ -40,14 +41,14 @@ export async function POST(request: Request) {
       if (action.localOrderId) {
         await prisma.order.updateMany({
           where: { id: action.localOrderId, status: "quoted", paypalOrderId: null },
-          data: { paypalOrderId: action.paypalOrderId, approvedAt: new Date() },
+          data: { paypalOrderId: action.paypalOrderId, paypalEnv: environment, approvedAt: new Date() },
         });
       }
       await prisma.order.updateMany({
         where: { paypalOrderId: action.paypalOrderId, approvedAt: null },
         data: { approvedAt: new Date() },
       });
-      const result = await capturePaypalCheckout(action.paypalOrderId);
+      const result = await capturePaypalCheckout(action.paypalOrderId, environment);
       if (!result.ok) return jsonError(result.status, "paypal_capture_failed", result.message);
       return Response.json({ ok: true, status: result.status });
     }

@@ -1,5 +1,6 @@
 import { declaredBodyTooLarge, jsonError } from "@/lib/http";
 import { PaypalNotConfiguredError, createPaypalCheckout } from "@/lib/paypal";
+import { paypalEnvironmentForRequest } from "@/lib/paypal-env";
 import { recordIdSchema } from "@/lib/validators";
 import { z } from "zod";
 
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) return jsonError(400, "bad_order", "A PlateQuote order id is required.");
   try {
-    const result = await createPaypalCheckout(parsed.data.orderId);
+    const result = await createPaypalCheckout(parsed.data.orderId, paypalEnvironmentForRequest(request));
     if (!result.ok) return jsonError(result.status, "paypal_create_failed", result.message);
     return Response.json({ paypalOrderId: result.paypalOrderId });
   } catch (error) {
@@ -26,6 +27,6 @@ export async function POST(request: Request) {
       return jsonError(503, "paypal_not_configured", error.message);
     }
     console.error(error);
-    return jsonError(502, "paypal_create_failed", "PayPal sandbox did not create an order.");
+    return jsonError(502, "paypal_create_failed", "PayPal did not create an order.");
   }
 }
