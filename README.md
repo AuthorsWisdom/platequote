@@ -116,6 +116,8 @@ The public site is the quote flow and PayPal checkout. Shop admin is a password 
 
 ## Tests
 
+Run `scripts/gate.sh` before calling a change done; it runs everything below plus build, lint, typecheck and a secret scan, and ends with `GATE: PASS` or `GATE: FAIL`.
+
 ```bash
 npm test
 ```
