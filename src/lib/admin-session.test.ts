@@ -28,6 +28,7 @@ function readyEnv() {
   vi.stubEnv("ADMIN_SESSION_SECRET", SECRET);
   vi.stubEnv("RENDER", "");
   vi.stubEnv("RENDER_SERVICE_ID", "");
+  vi.stubEnv("NODE_ENV", "test");
 }
 
 describe("adminConfig", () => {
@@ -67,6 +68,22 @@ describe("adminConfig", () => {
   });
 });
 
+describe("adminConfig in production builds", () => {
+  it("refuses the documented dev values when NODE_ENV is production, even off Render", () => {
+    readyEnv();
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ADMIN_PASSWORD", DEV_ADMIN_PASSWORD);
+    expect(adminConfig().state).toBe("locked");
+
+    vi.stubEnv("ADMIN_PASSWORD", PASSWORD);
+    vi.stubEnv("ADMIN_SESSION_SECRET", DEV_ADMIN_SESSION_SECRET);
+    expect(adminConfig().state).toBe("locked");
+
+    vi.stubEnv("ADMIN_SESSION_SECRET", SECRET);
+    expect(adminConfig().state).toBe("ready");
+  });
+});
+
 describe("password and session", () => {
   it("compares passwords without trusting length alone", () => {
     expect(passwordMatches(PASSWORD, PASSWORD)).toBe(true);
@@ -100,6 +117,15 @@ describe("password and session", () => {
     vi.stubEnv("RENDER", "true");
     expect(sessionCookie(token)).toContain("Secure");
     expect(clearSessionCookie()).toContain("Max-Age=0");
+    expect(clearSessionCookie()).toContain("Secure");
+  });
+
+  it("adds Secure whenever NODE_ENV is production", async () => {
+    readyEnv();
+    const token = await createSessionToken(PASSWORD, SECRET);
+    expect(sessionCookie(token)).not.toContain("Secure");
+    vi.stubEnv("NODE_ENV", "production");
+    expect(sessionCookie(token)).toContain("Secure");
     expect(clearSessionCookie()).toContain("Secure");
   });
 });

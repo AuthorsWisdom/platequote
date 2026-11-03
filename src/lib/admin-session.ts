@@ -4,7 +4,7 @@ import { jsonError } from "@/lib/http";
 export const ADMIN_COOKIE = "pq_admin";
 export const ADMIN_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** Documented in .env.example. Refused when the app is running on Render. */
+/** Documented in .env.example. Refused on Render and in any production build. */
 export const DEV_ADMIN_PASSWORD = "platequote-dev";
 export const DEV_ADMIN_SESSION_SECRET = "platequote-dev-session-secret";
 
@@ -13,6 +13,11 @@ const textEncoder = new TextEncoder();
 export type AdminConfig =
   | { state: "ready"; password: string; secret: string }
   | { state: "locked"; message: string };
+
+/** Render hosts and any NODE_ENV=production process (next start, the Docker image). */
+export function isProductionLike(): boolean {
+  return isRenderHost() || process.env.NODE_ENV === "production";
+}
 
 export function timingSafeEqualString(left: string, right: string): boolean {
   const a = textEncoder.encode(left);
@@ -52,11 +57,11 @@ export function adminConfig(): AdminConfig {
       message: "Shop admin is locked. ADMIN_SESSION_SECRET must be at least 16 characters.",
     };
   }
-  if (isRenderHost() && (password === DEV_ADMIN_PASSWORD || secret === DEV_ADMIN_SESSION_SECRET)) {
+  if (isProductionLike() && (password === DEV_ADMIN_PASSWORD || secret === DEV_ADMIN_SESSION_SECRET)) {
     return {
       state: "locked",
       message:
-        "Shop admin is locked on the public host. Set a unique ADMIN_PASSWORD in the Render dashboard. The local development password is refused here.",
+        "Shop admin is locked on this production host. Set a unique ADMIN_PASSWORD and ADMIN_SESSION_SECRET. The local development values are refused here.",
     };
   }
   return { state: "ready", password, secret };
@@ -130,7 +135,7 @@ export async function verifySessionToken(
 }
 
 export function sessionCookieSecure(): boolean {
-  return isRenderHost();
+  return isProductionLike();
 }
 
 export function sessionCookie(token: string): string {
