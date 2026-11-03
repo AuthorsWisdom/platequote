@@ -1,6 +1,7 @@
 import { jsonError } from "@/lib/http";
 import { PaypalNotConfiguredError, capturePaypalCheckout } from "@/lib/paypal";
 import { paypalEnvironmentForRequest } from "@/lib/paypal-env";
+import { paypalRateLimit } from "@/lib/rate-limit";
 
 const paypalOrderIdSchema = /^[A-Za-z0-9_-]{8,64}$/;
 
@@ -10,6 +11,8 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ paypalOrderId: string }> },
 ) {
+  const limited = paypalRateLimit(request);
+  if (limited) return limited;
   const { paypalOrderId } = await context.params;
   if (!paypalOrderIdSchema.test(paypalOrderId)) {
     return jsonError(404, "not_found", "No PlateQuote order matches that PayPal order.");
