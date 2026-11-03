@@ -36,8 +36,8 @@ export function passwordMatches(provided: string, expected: string): boolean {
 
 /**
  * Missing secrets lock admin in every environment, including local.
- * Docker compose and `.env.example` supply dev values so local sign-in still works.
- * Those dev values are refused on Render.
+ * `.env.example` supplies dev values so `npm run dev` sign-in works. Those dev values
+ * are refused on Render and whenever NODE_ENV=production (next start, docker compose).
  */
 export function adminConfig(): AdminConfig {
   const password = process.env.ADMIN_PASSWORD?.trim() ?? "";

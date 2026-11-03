@@ -29,7 +29,7 @@ cp .env.example .env   # optional; empty PayPal keys are fine
 docker compose up --build
 ```
 
-Open [http://127.0.0.1:43123](http://127.0.0.1:43123). Shop admin is at [http://127.0.0.1:43123/login](http://127.0.0.1:43123/login). The local password is `platequote-dev` (see `.env.example`).
+Open [http://127.0.0.1:43123](http://127.0.0.1:43123). Shop admin is at [http://127.0.0.1:43123/login](http://127.0.0.1:43123/login). Under Docker, admin sign-in needs your own `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` in `.env`: the container runs with `NODE_ENV=production`, which refuses the dev values (see `.env.example`). The dev password `platequote-dev` works only with `npm run dev`.
 
 - Web app: port 43123
 - Slicer worker: port 8091
@@ -75,7 +75,7 @@ No sandbox buyer login is included here. Use the buyer from your own sandbox app
 
 ## Environment
 
-Dev values below are not production secrets. Copy `.env.example` for local `npm run dev`. Docker Compose uses the same defaults when the variables are unset.
+Dev values below are not production secrets. Copy `.env.example` for local `npm run dev`. Docker Compose uses the same defaults when the variables are unset, but its web image runs with `NODE_ENV=production`, so the dev admin password and session secret are refused there and admin stays locked. Set your own `ADMIN_PASSWORD` (8+ characters) and `ADMIN_SESSION_SECRET` (16+ characters, e.g. `openssl rand -hex 32`) in `.env` before `docker compose up`.
 
 | Variable | Required on Render | Purpose |
 | --- | --- | --- |
@@ -95,7 +95,7 @@ Dev values below are not production secrets. Copy `.env.example` for local `npm 
 | `LLM_MODEL` | Optional | Overrides the provider default |
 | `LLM_BASE_URL` | Optional | OpenAI-compatible base URL |
 
-Local dev password and session secret, also used by Compose: `platequote-dev` and `platequote-dev-session-secret`. Local worker token: `platequote-dev-worker`.
+Local dev password and session secret for `npm run dev`: `platequote-dev` and `platequote-dev-session-secret`. Compose falls back to them too, but they are refused there because the image sets `NODE_ENV=production`. Local worker token: `platequote-dev-worker`.
 
 ## Security
 
