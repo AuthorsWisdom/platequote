@@ -16,7 +16,7 @@ import {
   verifySessionToken,
 } from "./admin-session";
 
-const PASSWORD = "shop-owner-password";
+const PASSWORD = "test-admin-pw-1";
 const SECRET = "session-secret-value";
 
 afterEach(() => {

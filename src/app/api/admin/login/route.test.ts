@@ -3,7 +3,7 @@ import { ADMIN_COOKIE, verifySessionToken } from "@/lib/admin-session";
 import { LOGIN_LIMIT, resetRateLimits } from "@/lib/rate-limit";
 import { POST } from "./route";
 
-const PASSWORD = "shop-owner-password";
+const PASSWORD = "test-admin-pw-1";
 const SECRET = "session-secret-value";
 
 afterEach(() => {
