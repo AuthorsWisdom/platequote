@@ -32,10 +32,7 @@ export function paypalPublicConfig(environment: PaypalEnvironment): PaypalPublic
   const { clientId, secret } = paypalCredentials(environment);
   const sdkUrl = PAYPAL_HOSTS[environment].sdk;
   if (!clientId || !secret) {
-    const names =
-      environment === "live"
-        ? "PAYPAL_LIVE_CLIENT_ID and PAYPAL_LIVE_CLIENT_SECRET"
-        : "PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET";
+    const names = "PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET";
     return {
       enabled: false,
       clientId: null,
@@ -159,8 +156,7 @@ export async function createPaypalCheckout(localOrderId: string, environment: Pa
   }
 
   const value = (order.amountCents / 100).toFixed(2);
-  // Live receipts name the seller of record, not the seeded demo shop name.
-  const seller = environment === "live" ? "PlateQuote (C. Espinoza)" : order.shop.name;
+  const seller = order.shop.name;
   const description = `${seller}: ${order.quote.originalFilename} x ${order.quote.quantity}`.slice(0, 127);
   const created = await paypalFetch(environment, "/v2/checkout/orders", {
     method: "POST",
