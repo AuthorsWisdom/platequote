@@ -15,6 +15,8 @@
 #   7. shell        bash -n on every tracked *.sh
 #   8. json         JSON.parse on every tracked *.json
 #   9. mock-lock    LLM_PROVIDER must still default to "mock" (see check_mock_lock)
+#  10. sandbox-lock PayPal is sandbox only (ruled 2026-11-03): no non-sandbox
+#                   PayPal API host and no live key name in src/ or render.yaml
 #
 # Env:  GATE_WORKER_VENV=<dir>   use this venv dir instead of .gate-cache/worker-venv
 #       GATE_SKIP_BUILD=1        skip next build (local debugging only)
@@ -167,6 +169,26 @@ check_mock_lock() {
   '
 }
 section "mock lock (LLM_PROVIDER default is mock)" check_mock_lock
+
+# ---------- 10. PayPal sandbox lock ----------
+# RULED 2026-11-03 (Christopher): PayPal sandbox only. Fails if the live REST
+# host (api-m DOT paypal DOT com, i.e. not api-m.sandbox) or any live key name
+# (PAYPAL_ + LIVE...) appears in tracked files under src/ or in render.yaml,
+# or if paypal-env.ts no longer names the sandbox API host.
+check_sandbox_lock() {
+  local hits pat
+  pat='api-m''\.paypal\.com|PAYPAL''_LIVE'
+  hits="$(git ls-files -z -- src render.yaml | xargs -0 grep -nE "$pat" 2>/dev/null || true)"
+  if [ -n "$hits" ]; then
+    say "  live PayPal reference(s) found (sandbox only, ruled 2026-11-03):"
+    printf '%s\n' "$hits" | cut -c1-200 | sed 's/^/    /'
+    return 1
+  fi
+  grep -q 'https://api-m.sandbox.paypal.com' src/lib/paypal-env.ts \
+    || { say "  src/lib/paypal-env.ts no longer names https://api-m.sandbox.paypal.com"; return 1; }
+  say "  sandbox only: no live PayPal host or key in src/ or render.yaml"
+}
+section "PayPal sandbox lock (no live host or keys)" check_sandbox_lock
 
 say ""
 say "---- [gate.local] all sections passed"

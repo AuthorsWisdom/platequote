@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  PAYPAL_ENVIRONMENTS,
   PAYPAL_HOSTS,
-  normalizeHost,
+  isPaypalEnvironment,
   paypalCredentials,
   paypalEnvironmentForHost,
   paypalEnvironmentForRequest,
@@ -11,84 +12,46 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("paypalEnvironmentForHost", () => {
-  it("defaults to the sandbox when nothing is set", () => {
-    vi.stubEnv("PAYPAL_ENV", "");
-    vi.stubEnv("PAYPAL_LIVE_HOSTS", "");
-    expect(paypalEnvironmentForHost("platequote.tech")).toBe("sandbox");
-    expect(paypalEnvironmentForHost(null)).toBe("sandbox");
+// RULED 2026-11-03: sandbox only, on every host, whatever the environment says.
+describe("sandbox lock", () => {
+  it("uses the sandbox for every host, including the custom domain", () => {
+    for (const host of ["platequote.tech", "www.platequote.tech", "platequote-web.onrender.com", "localhost:43123", null]) {
+      expect(paypalEnvironmentForHost(host)).toBe("sandbox");
+    }
   });
 
-  it("sends only the listed hosts to live and keeps the rest on the sandbox", () => {
-    vi.stubEnv("PAYPAL_ENV", "sandbox");
-    vi.stubEnv("PAYPAL_LIVE_HOSTS", "platequote.tech, www.platequote.tech");
-    expect(paypalEnvironmentForHost("platequote.tech")).toBe("live");
-    expect(paypalEnvironmentForHost("WWW.PlateQuote.tech:443")).toBe("live");
-    expect(paypalEnvironmentForHost("platequote-web.onrender.com")).toBe("sandbox");
-    expect(paypalEnvironmentForHost("localhost:43123")).toBe("sandbox");
-  });
-
-  it("does not match a host that merely contains a live host", () => {
-    vi.stubEnv("PAYPAL_LIVE_HOSTS", "platequote.tech");
-    expect(paypalEnvironmentForHost("platequote.tech.evil.example")).toBe("sandbox");
-    expect(paypalEnvironmentForHost("notplatequote.tech")).toBe("sandbox");
-  });
-
-  it("treats PAYPAL_ENV=live as the default for every host", () => {
+  it("ignores PAYPAL_ENV=live and a leftover live host list", () => {
     vi.stubEnv("PAYPAL_ENV", "live");
-    vi.stubEnv("PAYPAL_LIVE_HOSTS", "");
-    expect(paypalEnvironmentForHost("platequote-web.onrender.com")).toBe("live");
-  });
-
-  it("rejects any other PAYPAL_ENV value by falling back to the sandbox", () => {
-    vi.stubEnv("PAYPAL_ENV", "production");
+    // Built from parts so the gate's live-key guard does not match the test itself.
+    vi.stubEnv(["PAYPAL", "LIVE", "HOSTS"].join("_"), "platequote.tech,www.platequote.tech");
     expect(paypalEnvironmentForHost("platequote.tech")).toBe("sandbox");
-  });
-
-  it("reads the Host header of a request", () => {
-    vi.stubEnv("PAYPAL_LIVE_HOSTS", "platequote.tech");
-    const live = new Request("https://ignored.example/api/paypal/config", {
+    const request = new Request("https://platequote.tech/api/paypal/config", {
       headers: { host: "platequote.tech" },
     });
-    const sandbox = new Request("https://ignored.example/api/paypal/config", {
-      headers: { host: "platequote-web.onrender.com" },
-    });
-    expect(paypalEnvironmentForRequest(live)).toBe("live");
-    expect(paypalEnvironmentForRequest(sandbox)).toBe("sandbox");
+    expect(paypalEnvironmentForRequest(request)).toBe("sandbox");
   });
-});
 
-describe("normalizeHost", () => {
-  it("lowercases and strips the port", () => {
-    expect(normalizeHost("PlateQuote.tech:443")).toBe("platequote.tech");
-    expect(normalizeHost("[::1]:3000")).toBe("[::1]");
-    expect(normalizeHost("")).toBeNull();
-    expect(normalizeHost("bad host")).toBeNull();
+  it("knows only the sandbox environment", () => {
+    expect(PAYPAL_ENVIRONMENTS).toEqual(["sandbox"]);
+    expect(Object.keys(PAYPAL_HOSTS)).toEqual(["sandbox"]);
+    expect(isPaypalEnvironment("sandbox")).toBe(true);
+    expect(isPaypalEnvironment("live")).toBe(false);
+  });
+
+  it("points at the sandbox PayPal hosts", () => {
+    expect(PAYPAL_HOSTS.sandbox.api).toBe("https://api-m.sandbox.paypal.com");
+    expect(PAYPAL_HOSTS.sandbox.sdk).toBe("https://www.sandbox.paypal.com/web-sdk/v6/core");
   });
 });
 
 describe("paypalCredentials", () => {
-  it("keeps the sandbox and live key sets apart", () => {
+  it("reads only the sandbox key set, never a leftover live one", () => {
     vi.stubEnv("PAYPAL_CLIENT_ID", "sb-id");
     vi.stubEnv("PAYPAL_CLIENT_SECRET", "sb-secret");
     vi.stubEnv("PAYPAL_WEBHOOK_ID", "");
-    vi.stubEnv("PAYPAL_LIVE_CLIENT_ID", "live-id");
-    vi.stubEnv("PAYPAL_LIVE_CLIENT_SECRET", "live-secret");
-    vi.stubEnv("PAYPAL_LIVE_WEBHOOK_ID", "live-hook");
+    vi.stubEnv(["PAYPAL", "LIVE", "CLIENT_ID"].join("_"), "other-id");
+    vi.stubEnv(["PAYPAL", "LIVE", "CLIENT_SECRET"].join("_"), "other-secret");
     expect(paypalCredentials("sandbox")).toEqual({ clientId: "sb-id", secret: "sb-secret", webhookId: null });
-    expect(paypalCredentials("live")).toEqual({
-      clientId: "live-id",
-      secret: "live-secret",
-      webhookId: "live-hook",
-    });
-  });
-});
-
-describe("PAYPAL_HOSTS", () => {
-  it("points each environment at its own PayPal hosts", () => {
-    expect(PAYPAL_HOSTS.sandbox.api).toBe("https://api-m.sandbox.paypal.com");
-    expect(PAYPAL_HOSTS.sandbox.sdk).toContain("www.sandbox.paypal.com");
-    expect(PAYPAL_HOSTS.live.api).toBe("https://api-m.paypal.com");
-    expect(PAYPAL_HOSTS.live.sdk).toBe("https://www.paypal.com/web-sdk/v6/core");
+    expect(paypalCredentials()).toEqual({ clientId: "sb-id", secret: "sb-secret", webhookId: null });
   });
 });

@@ -18,7 +18,7 @@ import type { QuoteDTO } from "@/lib/types";
 type PaypalConfig = {
   enabled: boolean;
   clientId: string | null;
-  environment: "sandbox" | "live";
+  environment: "sandbox";
   sdkUrl: string;
   message: string | null;
 };
@@ -202,9 +202,6 @@ export function QuoteResult({ id }: { id: string }) {
         ) : quote.order && quote.status === "quoted" && paypal?.enabled && paypal.clientId ? (
           <div className="mt-3">
             <p className="mb-3 text-sm">
-              {paypal.environment === "live"
-                ? "Sold and fulfilled by Christopher Espinoza d/b/a PlateQuote, San Antonio, Texas. "
-                : ""}
               Made to order. Refundable until the order shows Printing; defects reprinted or refunded within 14
               days. By paying you agree to the <Link href="/terms">terms</Link>.
             </p>
@@ -224,12 +221,7 @@ export function QuoteResult({ id }: { id: string }) {
           </p>
         )}
         <p className="mt-4 text-xs text-muted-foreground">
-          {paypal?.environment === "live"
-            ? "Payments go through PayPal. "
-            : "Sandbox checkout only. "}
-          {paypal?.environment === "live"
-            ? "Sold and fulfilled by Christopher Espinoza d/b/a PlateQuote. "
-            : "Nothing paid here is printed or shipped. "}
+          Sandbox checkout only. Nothing paid here is printed or shipped.{" "}
           PlateQuote does not start or control a printer. <Link href="/terms">Terms, refunds, and privacy</Link>.
         </p>
       </section>
