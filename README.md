@@ -1,6 +1,6 @@
 # PlateQuote
 
-PlateQuote is a quote-and-checkout page for a one-person 3D-print shop. A customer uploads an STL or 3MF. A separate slicer process returns filament weight, print time, and whether supports were generated. The price is that output times the shop's own rates. A written review explains printability and materials. It does not set the price. Checkout, when configured, uses PayPal: the sandbox by default, live on the hosts listed in `PAYPAL_LIVE_HOSTS`.
+PlateQuote is a quote-and-checkout page for a one-person 3D-print shop. A customer uploads an STL or 3MF. A separate slicer process returns filament weight, print time, and whether supports were generated. The price is that output times the shop's own rates. A written review explains printability and materials. It does not set the price. Checkout, when configured, uses PayPal: the PayPal sandbox only (ruled 2026-11-03).
 
 This repository is the hackathon build for the PayPal AI Hackathon (Devpost deadline November 12, 2026, 12:00pm PT). The hosted demo runs on Render at `https://platequote.tech` (custom domain verified with a Render-issued certificate on 2026-10-29; `www` redirects to the root). The service also stays reachable at `https://platequote-web.onrender.com`, which is the host the PayPal sandbox webhook was registered against. Web service on the free plan, deployed 2026-10-28.
 
@@ -11,7 +11,7 @@ This repository is the hackathon build for the PayPal AI Hackathon (Devpost dead
 - Slicing worker: PrusaSlicer 2.8.1 runs as its own process inside Docker. The response is JSON (grams, time, supports, bounding box) plus mesh facts from trimesh (bed fit, watertightness, overhang share, thin-wall flag).
 - Deterministic pricing. Quantity multiplies material and machine time. A shop minimum replaces a smaller sum. Rush is a flat fee added after that. Switching material after a slice rescales filament mass from the sliced volume and keeps the print time, and the page says so.
 - Printability review and material advice. With `LLM_PROVIDER=mock` or no API key, a built-in reviewer writes the notes from the mesh facts and slicer JSON. With `LLM_PROVIDER=anthropic` and a key, Claude (default `claude-haiku-5-5`) writes the notes and the badge reads "AI review · Claude". The model receives only the mesh facts (bounding box, volume, surface area, overhang share and threshold, wall thickness, thin-wall flag, triangle and part count, watertight, fits bed, fits if rotated), the slicer summary (grams, filament volume, print time, supports, profile and engine name), the chosen material, quantity, and purpose, the printer bed size, and the shop's material names; the mesh file, file name, colour, rush, shop rates, and buyer details are never sent. The call is skipped when slicing failed, and it gets the smaller of `LLM_TIMEOUT_MS` and the time left in the 120 s quote route minus a 5 s save reserve. A slow call, an HTTP error, a refusal, or unparseable output falls back to the built-in reviewer, and the fallback reason shown is a fixed code, never a raw error message. An OpenAI-compatible provider is wired for local development only; in production `LLM_PROVIDER=openai` falls back to the built-in reviewer. Money the model writes is replaced with "the quoted price" as a best-effort filter, and the model never sets a price: comparison prices are attached afterward by the pricing engine.
-- PayPal checkout with JavaScript SDK v6 and Orders v2, sandbox or live per host. The server creates the order and captures it. Webhooks for `CHECKOUT.ORDER.APPROVED` (server captures) and `PAYMENT.CAPTURE.COMPLETED` (marks paid) are implemented. Without keys, checkout shows a clear message and quotes still work.
+- PayPal checkout with JavaScript SDK v6 and Orders v2, sandbox only. The server creates the order and captures it. Webhooks for `CHECKOUT.ORDER.APPROVED` (server captures) and `PAYMENT.CAPTURE.COMPLETED` (marks paid) are implemented. Without keys, checkout shows a clear message and quotes still work.
 - Shop orders table: quoted, paid, printing, shipped. Printing and shipped are local status marks.
 
 ## What is stubbed
@@ -29,7 +29,7 @@ cp .env.example .env   # optional; empty PayPal keys are fine
 docker compose up --build
 ```
 
-Open [http://127.0.0.1:43123](http://127.0.0.1:43123). Shop admin is at [http://127.0.0.1:43123/login](http://127.0.0.1:43123/login). The local password is `platequote-dev` (see `.env.example`).
+Open [http://127.0.0.1:43123](http://127.0.0.1:43123). Shop admin is at [http://127.0.0.1:43123/login](http://127.0.0.1:43123/login). Under Docker, admin sign-in needs your own `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` in `.env`: the container runs with `NODE_ENV=production`, which refuses the dev values (see `.env.example`). The dev password `platequote-dev` works only with `npm run dev`.
 
 - Web app: port 43123
 - Slicer worker: port 8091
@@ -59,7 +59,7 @@ You should see grams, time, a price breakdown, and a review. The overhang hook s
 
 ## PayPal
 
-Sandbox, the default everywhere:
+Sandbox only, on every host (ruled 2026-11-03; supersedes the 2026-10-29 per-host live setup):
 
 1. In the PayPal Developer Dashboard, create a sandbox app and a sandbox buyer.
 2. Put `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` in `.env`. Keep `PAYPAL_ENV=sandbox`.
@@ -67,15 +67,15 @@ Sandbox, the default everywhere:
 4. Price a part, then use the PayPal button and the sandbox buyer. The button loads `https://www.sandbox.paypal.com/web-sdk/v6/core`. The server calls `https://api-m.sandbox.paypal.com`.
 5. After capture, the order is paid and shows on `/dashboard` once you are signed in as the shop admin.
 
-Live, per host: `PAYPAL_LIVE_HOSTS` is a comma-separated list of hostnames (read from the request's `Host` header) that use live PayPal with `PAYPAL_LIVE_CLIENT_ID`, `PAYPAL_LIVE_CLIENT_SECRET` and `PAYPAL_LIVE_WEBHOOK_ID`. Every other host keeps the sandbox keys. The hosted demo lists `platequote.tech` and `www.platequote.tech`, so the custom domain takes real payments while `platequote-web.onrender.com` stays on the sandbox. `PAYPAL_ENV=live` makes live the default for every host instead. The two key sets never mix: an order records which environment created its PayPal order (`paypalEnv`), a capture from the other environment is refused with 409, and the admin order list marks sandbox payments as "no real money".
+There is no live mode. The server always calls `https://api-m.sandbox.paypal.com`, `PAYPAL_ENV` is ignored, and `scripts/gate.local.sh` fails if a non-sandbox PayPal host or a live key name appears in `src/` or `render.yaml`. An order still records `paypalEnv` (always `sandbox`), and the admin order list marks sandbox payments as "no real money".
 
-Webhooks are the backup path if the browser closes after approval. Register the listener URL in the sandbox app and set `PAYPAL_WEBHOOK_ID`; for live, register it in the live app and set `PAYPAL_LIVE_WEBHOOK_ID`. Each signature is verified against every environment that has a webhook id, and the one that verifies decides which PayPal the capture call goes to. For a hand-posted local fixture only, set `PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS=true` while running `npm run dev`. That flag is ignored when `NODE_ENV=production`, which covers Docker, `next start`, and Render. `CHECKOUT.ORDER.APPROVED` triggers a server capture. `PAYMENT.CAPTURE.COMPLETED` marks the order paid when the amount matches the quote. A mismatch does not mark it paid.
+Webhooks are the backup path if the browser closes after approval. Register the listener URL in the sandbox app and set `PAYPAL_WEBHOOK_ID`. Each signature is verified against the sandbox webhook id. For a hand-posted local fixture only, set `PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS=true` while running `npm run dev`. That flag is ignored when `NODE_ENV=production`, which covers Docker, `next start`, and Render. `CHECKOUT.ORDER.APPROVED` triggers a server capture. `PAYMENT.CAPTURE.COMPLETED` marks the order paid when the amount matches the quote. A mismatch does not mark it paid.
 
 No sandbox buyer login is included here. Use the buyer from your own sandbox app.
 
 ## Environment
 
-Dev values below are not production secrets. Copy `.env.example` for local `npm run dev`. Docker Compose uses the same defaults when the variables are unset.
+Dev values below are not production secrets. Copy `.env.example` for local `npm run dev`. Docker Compose uses the same defaults when the variables are unset, but its web image runs with `NODE_ENV=production`, so the dev admin password and session secret are refused there and admin stays locked. Set your own `ADMIN_PASSWORD` (8+ characters) and `ADMIN_SESSION_SECRET` (16+ characters, e.g. `openssl rand -hex 32`) in `.env` before `docker compose up`.
 
 | Variable | Required on Render | Purpose |
 | --- | --- | --- |
@@ -85,14 +85,10 @@ Dev values below are not production secrets. Copy `.env.example` for local `npm 
 | `ADMIN_PASSWORD` | Yes, you set it (`sync: false`) | Shop admin password. Unset locks admin. The dev value is refused on Render |
 | `ADMIN_SESSION_SECRET` | Yes, generated | HMAC key for the admin session cookie. Unset locks admin |
 | `UPLOAD_DIR` | Set in the blueprint | Local cache for uploaded meshes; the copy of record is the `QuoteFile` table in Postgres |
-| `PAYPAL_ENV` | Yes, `sandbox` | Default environment for hosts not in `PAYPAL_LIVE_HOSTS`: `sandbox` or `live` |
-| `PAYPAL_LIVE_HOSTS` | Set in the blueprint | Hostnames that use live PayPal (`platequote.tech,www.platequote.tech`) |
+| `PAYPAL_ENV` | Optional, `sandbox` | Ignored: PayPal is sandbox only |
 | `PAYPAL_CLIENT_ID` | For sandbox checkout | Sandbox client id (public) |
 | `PAYPAL_CLIENT_SECRET` | For sandbox checkout | Sandbox secret. Server only |
 | `PAYPAL_WEBHOOK_ID` | For sandbox webhooks | Sandbox webhook id for signature checks |
-| `PAYPAL_LIVE_CLIENT_ID` | For live checkout | Live client id (public), from the live REST app |
-| `PAYPAL_LIVE_CLIENT_SECRET` | For live checkout | Live secret. Server only, never in a file |
-| `PAYPAL_LIVE_WEBHOOK_ID` | For live webhooks | Live webhook id for signature checks |
 | `PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS` | Do not set | `true` only for unsigned posts to `npm run dev`. Ignored in production |
 | `LLM_PROVIDER` | Optional (`anthropic` in the blueprint) | `mock`, `openai` (development only), or `anthropic` |
 | `LLM_API_KEY` | Optional | Blank falls back to the mock reviewer |
@@ -100,7 +96,7 @@ Dev values below are not production secrets. Copy `.env.example` for local `npm 
 | `LLM_TIMEOUT_MS` | Optional | AI review call timeout before falling back to the built-in reviewer. Integer, clamped to 1000 to 30000. Default 15000 |
 | `LLM_BASE_URL` | Optional | OpenAI-compatible base URL |
 
-Local dev password and session secret, also used by Compose: `platequote-dev` and `platequote-dev-session-secret`. Local worker token: `platequote-dev-worker`.
+Local dev password and session secret for `npm run dev`: `platequote-dev` and `platequote-dev-session-secret`. Compose falls back to them too, but they are refused there because the image sets `NODE_ENV=production`. Local worker token: `platequote-dev-worker`.
 
 ## Security
 
@@ -116,6 +112,8 @@ The public site is the quote flow and PayPal checkout. Shop admin is a password 
 - Unexpected errors are logged on the server and returned as a short message. PayPal webhooks are checked with PayPal's signature API when `PAYPAL_WEBHOOK_ID` is set. `PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS` cannot turn that off in production.
 
 ## Tests
+
+Run `scripts/gate.sh` before calling a change done; it runs everything below plus build, lint, typecheck and a secret scan, and ends with `GATE: PASS` or `GATE: FAIL`.
 
 ```bash
 npm test

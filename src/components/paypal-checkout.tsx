@@ -64,7 +64,7 @@ export function PaypalCheckout({
 }: {
   orderId: string;
   clientId: string;
-  environment: "sandbox" | "live";
+  environment: "sandbox";
   sdkUrl: string;
   onPaid: () => void;
 }) {

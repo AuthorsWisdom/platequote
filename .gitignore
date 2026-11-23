@@ -48,3 +48,6 @@ next-env.d.ts
 
 __pycache__/
 *.py[cod]
+
+# gate.sh cache (worker venv)
+/.gate-cache
