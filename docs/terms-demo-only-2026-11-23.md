@@ -81,4 +81,4 @@ Open for a licensed attorney: whether a public PayPal sandbox checkout fits PayP
 
 ## PR
 
-See the PR line appended below after creation.
+https://github.com/AuthorsWisdom/platequote/pull/14 (OPEN, not merged)
