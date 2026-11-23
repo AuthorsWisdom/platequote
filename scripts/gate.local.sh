@@ -125,7 +125,11 @@ json_parse() {
 }
 section "json parse" json_parse
 
-# ---------- 9. mock lock ----------
+# ---------- 9. provider lock ----------
+# RULED 2026-11-23 (Christopher, "unlock mock, ship live AI"): the hosted demo runs
+# LLM_PROVIDER=anthropic (render.yaml); code, docker-compose and .env.example still
+# default to mock so a keyless or local run never calls a model. Supersedes the
+# 2026-10-29 "mock stays for judging" lock. Review date 2026-12-21 (winners).
 # The default comes from providerName() in src/lib/ai/review.ts:
 #   const raw = (process.env.LLM_PROVIDER || "mock").trim().toLowerCase();
 #   if (raw === "openai" || raw === "anthropic" || raw === "mock") return raw;
@@ -155,20 +159,20 @@ check_mock_lock() {
       }
     }
     const pins = [
-      ["render.yaml", /-\s*key:\s*LLM_PROVIDER\s*\n\s*value:\s*["\x27]?mock["\x27]?\s*(\n|$)/],
+      ["render.yaml", /-\s*key:\s*LLM_PROVIDER\s*\n\s*value:\s*["\x27]?anthropic["\x27]?\s*(\n|$)/],
       ["docker-compose.yml", /LLM_PROVIDER:\s*\$\{LLM_PROVIDER:-mock\}/],
       [".env.example", /^LLM_PROVIDER=mock\s*$/m],
     ];
     for (const [f, re] of pins) {
       const t = read(f);
       if (t === null) fails.push(f + " is missing");
-      else if (!re.test(t)) fails.push(f + ": LLM_PROVIDER default is no longer mock");
+      else if (!re.test(t)) fails.push(f + ": LLM_PROVIDER pin changed (render.yaml anthropic, others mock)");
     }
     if (fails.length) { for (const f of fails) console.log("  " + f); process.exit(1); }
-    console.log("  LLM_PROVIDER defaults to mock in review.ts, render.yaml, docker-compose.yml, .env.example");
+    console.log("  LLM_PROVIDER: render.yaml anthropic; review.ts, docker-compose.yml, .env.example default mock");
   '
 }
-section "mock lock (LLM_PROVIDER default is mock)" check_mock_lock
+section "provider lock (render anthropic, local default mock)" check_mock_lock
 
 # ---------- 10. PayPal sandbox lock ----------
 # RULED 2026-11-03 (Christopher): PayPal sandbox only. Fails if the live REST

@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { colorHex } from "@/lib/constants";
 import { formatDuration, formatGrams, formatPercent, formatUsd } from "@/lib/format";
+import { AI_NOTES_DISCLAIMER, reviewBadgeLabel } from "@/lib/ai/labels";
 import type { QuoteDTO } from "@/lib/types";
 
 type PaypalConfig = {
@@ -172,8 +173,8 @@ export function QuoteResult({ id }: { id: string }) {
       {quote.mesh ? (
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Fact label="Bounding box" value={`${quote.mesh.boundingBoxMm.x} × ${quote.mesh.boundingBoxMm.y} × ${quote.mesh.boundingBoxMm.z} mm`} />
-          <Fact label="Print time" value={quote.printTimeSeconds != null ? formatDuration(quote.printTimeSeconds) : "—"} />
-          <Fact label="Supports" value={quote.supports == null ? "—" : quote.supports ? "Yes" : "No"} />
+          <Fact label="Print time" value={quote.printTimeSeconds != null ? formatDuration(quote.printTimeSeconds) : "n/a"} />
+          <Fact label="Supports" value={quote.supports == null ? "n/a" : quote.supports ? "Yes" : "No"} />
           <Fact
             label="Mesh"
             value={`${quote.mesh.watertight ? "Watertight" : "Not watertight"} · overhang ${formatPercent(quote.mesh.overhangFaceShare)}`}
@@ -264,7 +265,7 @@ function ReviewBlock({
       <div className="rounded-2xl border border-border bg-card p-5">
         <div className="flex items-center justify-between gap-2">
           <h2 className="font-heading text-2xl">Print notes</h2>
-          <Badge variant="outline">{review.mocked ? "Built-in review" : review.provider}</Badge>
+          <Badge variant="outline">{reviewBadgeLabel(review)}</Badge>
         </div>
         <p className="mt-3 text-sm leading-6">{review.summary}</p>
         <p className="mt-3 text-sm text-muted-foreground">{review.orientationNote}</p>
@@ -291,9 +292,7 @@ function ReviewBlock({
       </div>
       <div className="rounded-2xl border border-border bg-card p-5">
         <h2 className="font-heading text-2xl">Material advice</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The words come from the reviewer. Every dollar figure comes from the pricing engine.
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{AI_NOTES_DISCLAIMER}</p>
         <ul className="mt-4 space-y-3">
           {quotes.map((item) => {
             const stocked = quote.material.name.toLowerCase() === item.material.toLowerCase();

@@ -22,17 +22,52 @@ export const modelReviewSchema = z.object({
   ),
 });
 
-const MONEY = /\$\s?\d|\b(?:usd|dollars?|cents?)\b/gi;
+// Money in any spelling a model is likely to use: "$3.50", "$  5.00", "$.99", "US$12", "USD 25.00",
+// "3.50 USD", "2 dollars", "40¢", "20-cent", "€9.99", "12,50 €", "50 EUR", "50 euros",
+// "£7", "10 GBP", and the bare unit words and symbols. "pounds" is left alone: it is also a weight.
+const AMOUNT = String.raw`(?:\d[\d,.]*\d|\d|\.\d+)`;
+const WORD_UNIT = String.raw`(?:usd|eur|gbp|us\s+dollars?|dollars?|euros?|cents?|bucks)`;
+const MONEY = new RegExp(
+  [
+    String.raw`(?:\bUS)?\$\s*${AMOUNT}`,
+    String.raw`[€£]\s*${AMOUNT}`,
+    String.raw`\b(?:usd|eur|gbp|us\s+dollars?|dollars?|euros?|bucks)\s*${AMOUNT}`,
+    String.raw`${AMOUNT}[\s-]*${WORD_UNIT}\b`,
+    String.raw`${AMOUNT}\s*[¢€£]`,
+    String.raw`\b${WORD_UNIT}\b`,
+    String.raw`[$¢€£]`,
+  ].join("|"),
+  "gi",
+);
 
 export function scrubMoney(text: string): string {
   return text.replace(MONEY, "the quoted price").replace(/\s{2,}/g, " ").trim();
 }
 
+// "$20–30" or "$20 to $30" collapses to one amount before scrubbing, so no stray "30" survives.
+const MONEY_RANGE = new RegExp(
+  String.raw`((?:\bUS)?[$€£]\s*${AMOUNT})\s*(?:[–—-]|to)\s*[$€£]?\s*${AMOUNT}`,
+  "gi",
+);
+
+/** Dashes out in the site's style: numeric ranges read "20 to 30", other em or en dashes become commas. */
+function undash(text: string): string {
+  return text
+    .replace(MONEY_RANGE, "$1")
+    .replace(/(\d)\s*[–—]\s*(?=\d)/g, "$1 to ")
+    .replace(/\s*[–—]\s*/g, ", ");
+}
+
+/** Money out, and em or en dashes removed so model prose matches the site's style. */
+function cleanModelText(text: string): string {
+  return scrubMoney(undash(text));
+}
+
 function scrubAdvice(advice: MaterialAdvice[]): MaterialAdvice[] {
   return advice.map((item) => ({
-    material: item.material.replace(MONEY, "").trim(),
+    material: item.material.replace(MONEY, "").replace(/\s*[–—]\s*/g, " ").replace(/\s{2,}/g, " ").trim(),
     fit: item.fit,
-    reason: scrubMoney(item.reason),
+    reason: cleanModelText(item.reason),
   }));
 }
 
@@ -45,15 +80,15 @@ export function reviewFromModel(
     provider,
     mocked: false,
     mockReason: null,
-    summary: scrubMoney(parsed.summary),
+    summary: cleanModelText(parsed.summary),
     printable: parsed.printable,
     warnings: parsed.warnings.map((warning) => ({
       ...warning,
-      title: scrubMoney(warning.title),
-      detail: scrubMoney(warning.detail),
-      fix: scrubMoney(warning.fix),
+      title: cleanModelText(warning.title),
+      detail: cleanModelText(warning.detail),
+      fix: cleanModelText(warning.fix),
     })),
-    orientationNote: scrubMoney(parsed.orientationNote),
+    orientationNote: cleanModelText(parsed.orientationNote),
     materialAdvice: scrubAdvice(parsed.materialAdvice),
   };
 }

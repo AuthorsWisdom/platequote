@@ -3,8 +3,10 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { attachEnginePrices } from "@/lib/ai/price-advice";
+import { toPublicReason } from "@/lib/ai/reasons";
 import { reviewPrint } from "@/lib/ai/review";
 import { prisma } from "@/lib/db";
+import { quoteDeadline, slicerTimeoutMs } from "@/lib/quote-budget";
 import { gramsForMaterial, priceQuote, type PriceBreakdown } from "@/lib/pricing";
 import { toPublicOrder } from "@/lib/public-order";
 import { meshFactsSchema, parseSlicerResult, type SlicerResponse } from "@/lib/slicer-result";
@@ -57,7 +59,9 @@ function readBreakdown(value: Prisma.JsonValue): PriceBreakdownDTO | null {
 function readReview(value: Prisma.JsonValue): StoredReview | null {
   const record = asRecord(value);
   if (!record || !record.review || !Array.isArray(record.materialQuotes)) return null;
-  return record as StoredReview;
+  const stored = record as StoredReview;
+  // Older builds saved raw error text here; only fixed public codes reach the page.
+  return { ...stored, review: { ...stored.review, mockReason: toPublicReason(stored.review.mockReason) } };
 }
 
 export function toQuoteDTO(quote: QuoteRecord): QuoteDTO {
@@ -123,7 +127,16 @@ async function sliceUpload(input: {
   bedXmm: number;
   bedYmm: number;
   bedZmm: number;
+  timeoutMs: number | null;
 }): Promise<SlicerResponse> {
+  const timedOut: SlicerResponse = {
+    ok: false,
+    error: "worker_timeout",
+    message: "Slicing took longer than this quote can wait. Try a smaller or simpler file.",
+    mesh: null,
+  };
+  // Not enough of the route budget left to slice and still save: skip the worker.
+  if (input.timeoutMs === null) return timedOut;
   const body = new FormData();
   body.append("file", new Blob([new Uint8Array(input.bytes)]), `model${input.extension}`);
   body.append("material", input.materialSlug);
@@ -145,9 +158,10 @@ async function sliceUpload(input: {
       method: "POST",
       headers: workerHeaders(),
       body,
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(input.timeoutMs),
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) return timedOut;
     return {
       ok: false,
       error: "worker_unreachable",
@@ -229,7 +243,10 @@ export async function createQuote(input: {
   quantity: number;
   rush: boolean;
   purpose: string;
+  /** Epoch ms by which the quote must be saved. Defaults to the route budget from now. */
+  deadline?: number;
 }): Promise<QuoteDTO> {
+  const deadline = input.deadline ?? quoteDeadline(Date.now());
   const inspected = inspectUpload(input.filename, input.bytes);
   if (!inspected.ok) throw new QuoteInputError(inspected.message);
   const extension = inspected.extension;
@@ -275,6 +292,7 @@ export async function createQuote(input: {
     bedXmm: printer.bedXmm,
     bedYmm: printer.bedYmm,
     bedZmm: printer.bedZmm,
+    timeoutMs: slicerTimeoutMs(deadline),
   });
 
   const materialDTO = toMaterialDTO(material);
@@ -296,7 +314,7 @@ export async function createQuote(input: {
       : null,
     shopMaterialNames: shop.materials.map((item) => item.name),
     mockReason: null,
-  });
+  }, { deadline });
 
   let breakdown: PriceBreakdown | null = null;
   let materialQuotes = review.materialAdvice.map((item) => ({

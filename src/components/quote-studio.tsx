@@ -204,9 +204,9 @@ export function QuoteStudio() {
           <p className="mt-1 text-sm text-muted-foreground">
             Minimum order ${shop.minimumOrder.toFixed(2)}. Rush adds ${shop.rushFee.toFixed(2)} after
             that minimum. Bed{" "}
-            {shop.printers.find((printer) => printer.id === printerId)?.bedXmm ?? "—"} ×{" "}
-            {shop.printers.find((printer) => printer.id === printerId)?.bedYmm ?? "—"} ×{" "}
-            {shop.printers.find((printer) => printer.id === printerId)?.bedZmm ?? "—"} mm.
+            {shop.printers.find((printer) => printer.id === printerId)?.bedXmm ?? "n/a"} ×{" "}
+            {shop.printers.find((printer) => printer.id === printerId)?.bedYmm ?? "n/a"} ×{" "}
+            {shop.printers.find((printer) => printer.id === printerId)?.bedZmm ?? "n/a"} mm.
           </p>
         </div>
 

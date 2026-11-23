@@ -1,5 +1,6 @@
 import { MAX_UPLOAD_BYTES } from "@/lib/constants";
 import { declaredBodyTooLarge, jsonError } from "@/lib/http";
+import { quoteDeadline } from "@/lib/quote-budget";
 import { QuoteInputError, createQuote } from "@/lib/quote-service";
 import { quoteRateLimit } from "@/lib/rate-limit";
 import { purposeSchema } from "@/lib/validators";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 export async function POST(request: Request) {
+  const deadline = quoteDeadline(Date.now());
   const limited = quoteRateLimit(request);
   if (limited) return limited;
   if (declaredBodyTooLarge(request, MAX_UPLOAD_BYTES + 1024 * 1024)) {
@@ -41,6 +43,7 @@ export async function POST(request: Request) {
       quantity,
       rush: String(form.get("rush") || "") === "true",
       purpose: purpose.data,
+      deadline,
     });
     return Response.json(quote);
   } catch (error) {

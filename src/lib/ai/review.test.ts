@@ -99,5 +99,10 @@ describe("reviewFromModel", () => {
     expect(review.summary).not.toMatch(/\$|12\.50/);
     expect(review.materialAdvice[0].reason.toLowerCase()).not.toMatch(/dollar/);
     expect(scrubMoney("$9")).toBe("the quoted price");
+    expect(scrubMoney("About $1,234.56 total")).toBe("About the quoted price total");
+    expect(scrubMoney("Roughly 3.50 USD, or 2 bucks of filament")).toBe(
+      "Roughly the quoted price, or the quoted price of filament",
+    );
+    expect(scrubMoney("Use 15% infill and 0.20 mm layers")).toBe("Use 15% infill and 0.20 mm layers");
   });
 });
