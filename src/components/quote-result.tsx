@@ -139,7 +139,7 @@ export function QuoteResult({ id }: { id: string }) {
               <p className="mt-2 text-sm text-muted-foreground">
                 Profile {quote.profileName ?? "generic"}
                 {quote.engine ? ` via ${quote.engine}` : ""}. Treat it as about ±
-                {quote.estimateTolerancePct}% versus a shop-tuned profile. We can decline the job and refund in full.
+                {quote.estimateTolerancePct}% versus a shop-tuned profile. This is a demonstration estimate.
               </p>
               <dl className="mt-4 space-y-1.5 text-sm">
                 <Row
@@ -203,8 +203,8 @@ export function QuoteResult({ id }: { id: string }) {
         ) : quote.order && quote.status === "quoted" && paypal?.enabled && paypal.clientId ? (
           <div className="mt-3">
             <p className="mb-3 text-sm">
-              Made to order. Refundable until the order shows Printing; defects reprinted or refunded within 14
-              days. By paying you agree to the <Link href="/terms">terms</Link>.
+              Demonstration checkout in the PayPal sandbox: no real money moves and nothing is printed or shipped.
+              See the <Link href="/terms">terms</Link>.
             </p>
             <PaypalCheckout
               orderId={quote.order.id}
@@ -222,8 +222,8 @@ export function QuoteResult({ id }: { id: string }) {
           </p>
         )}
         <p className="mt-4 text-xs text-muted-foreground">
-          Sandbox checkout only. Nothing paid here is printed or shipped.{" "}
-          PlateQuote does not start or control a printer. <Link href="/terms">Terms, refunds, and privacy</Link>.
+          Sandbox checkout only. Nothing here is printed or shipped.{" "}
+          PlateQuote does not start or control a printer. <Link href="/terms">Terms and privacy</Link>.
         </p>
       </section>
     </div>
