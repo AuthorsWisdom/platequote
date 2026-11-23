@@ -22,7 +22,7 @@ describe("quote time budget", () => {
 
   it("leaves the save reserve after a full-length slice", () => {
     const deadline = quoteDeadline(0);
-    const slice = slicerTimeoutMs(deadline, 0);
+    const slice = slicerTimeoutMs(deadline, 0) ?? Number.NaN;
     expect(slice + QUOTE_SAVE_RESERVE_MS).toBeLessThanOrEqual(deadline);
     expect(slicerTimeoutMs(deadline, 60_000)).toBe(deadline - 60_000 - QUOTE_SAVE_RESERVE_MS);
   });
