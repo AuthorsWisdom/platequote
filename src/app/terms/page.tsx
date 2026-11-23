@@ -30,17 +30,16 @@ export default function TermsPage() {
         below mean this business.
       </p>
       <p>
-        Northline Print is the sample shop name built into this software. On platequote.tech, every order is
-        sold, made, and refunded by Christopher Espinoza d/b/a PlateQuote. PayPal receipts for live orders name
-        PlateQuote as the seller.
+        Northline Print is the sample shop name built into this software. On platequote.tech, checkout runs in
+        PayPal&rsquo;s sandbox: no real money moves, and nothing paid here is printed or shipped.
       </p>
       <p>
         PlateQuote sells to customers in the United States only. Orders from elsewhere may be declined and
         refunded in full.
       </p>
       <p>
-        A second copy of this site runs at platequote-web.onrender.com for software judging. Checkout there uses
-        the PayPal sandbox: no money moves, and nothing paid there is printed or shipped.
+        A second copy of this site runs at platequote-web.onrender.com. Checkout there also uses the PayPal
+        sandbox: no money moves, and nothing paid there is printed or shipped.
       </p>
 
       <h2 id="service">What PlateQuote does</h2>
