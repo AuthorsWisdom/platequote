@@ -100,4 +100,4 @@ PayPal's developer and sandbox terms (not checked).
 
 ## PR
 
-PR_URL_PLACEHOLDER
+https://github.com/AuthorsWisdom/platequote/pull/13 (OPEN, not merged)
