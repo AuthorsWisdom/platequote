@@ -95,8 +95,8 @@ export default function TermsPage() {
       <h2 id="refunds">No orders, payments, or refunds</h2>
       <ul>
         <li>
-          A sandbox checkout charges nothing, so there is nothing to refund or cancel. PayPal buyer protection and
-          disputes do not apply to sandbox transactions.
+          A sandbox checkout charges nothing, so there is nothing to refund. PayPal buyer protection does not
+          apply to sandbox transactions, and any dispute raised in the sandbox is a simulation.
         </li>
         <li>
           The shop dashboard can move a test order through states such as paid, printing, and shipped to show how
@@ -136,28 +136,31 @@ export default function TermsPage() {
           file and the quote, so do not share it.
         </li>
         <li>
-          <strong>Quote and test order records</strong> (file name, material, colour, quantity, weight, time,
-          estimate, test order state) are kept so the demonstration can show quotes and test orders. We keep
-          these records, and files kept for test orders, until the demonstration is taken down or you ask us to
-          delete them.
+          <strong>Quote and test order records</strong> (file name, material, colour, quantity, rush choice,
+          print purpose, mesh measurements, slicer results, printability and AI review notes, weight, time,
+          estimate, test order state, and the PayPal sandbox order and capture IDs) are kept so the
+          demonstration can show quotes and test orders. The site does not delete these records, or files kept
+          for test orders, on its own. We delete them when you ask us to (see Your rights below).
         </li>
         <li>
           <strong>To and from PayPal:</strong> when you start a sandbox checkout, we send PayPal the sample shop
-          name, the quantity, the estimated price, and an internal order number, not your file or its name. When
-          a sandbox checkout completes, we store the email address of the PayPal
-          sandbox test account with the test order, until the record is deleted as described above. PayPal&rsquo;s sandbox may show us test account details such as
-          a test address; we do not store them. PayPal&rsquo;s privacy statement governs what PayPal collects.
+          name, the quantity, the estimated price, and an internal order number, not your file or its name. A
+          sandbox checkout started before these terms took effect may still carry a PayPal description that includes
+          the file name. When a sandbox checkout completes and PayPal provides one, we store the email address of
+          the PayPal sandbox test account with the test order, until you ask us to delete the record.
+          PayPal&rsquo;s sandbox may show us test account details such as a test address; we do not store them. PayPal&rsquo;s privacy statement governs what PayPal collects.
         </li>
         <li>
           <strong>Cookies and tracking:</strong> we run no analytics and no advertising. This site sets one
-          cookie, a login cookie for the shop administrator. When you view a priced quote, your browser loads
-          PayPal&rsquo;s checkout code, and PayPal may set its own cookies and collect device data under its
+          cookie, a login cookie for the shop administrator. When you view a priced quote that is still open for a
+          sandbox checkout, your browser loads PayPal&rsquo;s checkout code, and PayPal may set its own cookies and collect device data under its
           privacy statement.
         </li>
         <li>
           <strong>Hosting and who receives your data:</strong> the site, its database, and the slicing worker
           run on Render in the United States, which keeps standard server logs including IP addresses. The site
-          also uses your IP address briefly to limit repeated uploads, checkouts, and logins. Sandbox
+          also holds your IP address in server memory, not in the database, to limit repeated uploads, checkouts,
+          and logins. Sandbox
           checkout runs on PayPal. When AI review is on, Anthropic receives the print summary described above and
           nothing else about you or your file. Emails you send us or we send you pass through our email provider.
           We share your data with no one else, except where the law requires it.

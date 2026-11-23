@@ -1,4 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const DISTINCTIVE_FILENAME = "zz-secret-bracket-QX7731.stl";
+
+const findUniqueMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/db", () => ({
+  prisma: {
+    order: { findUnique: findUniqueMock, update: vi.fn(async () => ({})) },
+  },
+}));
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import TermsPage from "@/app/terms/page";
@@ -12,6 +21,41 @@ function termsText(): string {
     .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ");
 }
+
+/** Runs the real createPaypalCheckout against a mocked database and fetch; returns the create-order body. */
+async function createOrderBody(originalFilename: string): Promise<string> {
+  process.env.PAYPAL_CLIENT_ID = "test-client";
+  process.env.PAYPAL_CLIENT_SECRET = "test-secret";
+  findUniqueMock.mockResolvedValue({
+    id: "ORDER-LOCAL-1",
+    status: "quoted",
+    amountCents: 1234,
+    paypalOrderId: null,
+    paypalEnv: null,
+    shop: { name: "Northline Print" },
+    quote: { quantity: 2, originalFilename },
+  });
+  const sent: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/v1/oauth2/token")) {
+        return new Response(JSON.stringify({ access_token: "tok", expires_in: 300 }), { status: 200 });
+      }
+      sent.push(String(init?.body ?? ""));
+      return new Response(JSON.stringify({ id: "PAYPAL-1" }), { status: 201 });
+    }),
+  );
+  const { createPaypalCheckout } = await import("@/lib/paypal");
+  const result = await createPaypalCheckout("ORDER-LOCAL-1", "sandbox");
+  expect(result.ok).toBe(true);
+  expect(sent).toHaveLength(1);
+  return sent[0];
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("terms page", () => {
   const text = termsText();
@@ -96,13 +140,24 @@ describe("terms page", () => {
     }
   });
 
-  it("discloses what PayPal receives, and the code sends no file name", async () => {
+  it("discloses what PayPal receives, and the outgoing create-order body carries no file name", async () => {
     expect(text).toContain(
       "we send PayPal the sample shop name, the quantity, the estimated price, and an internal order number, not your file or its name.",
     );
-    const { readFileSync } = await import("node:fs");
-    const paypalSource = readFileSync("src/lib/paypal.ts", "utf8");
-    expect(paypalSource).not.toMatch(/description = `[^`]*originalFilename/);
+    const body = await createOrderBody(DISTINCTIVE_FILENAME);
+    expect(body).toContain("ORDER-LOCAL-1");
+    expect(body).not.toContain(DISTINCTIVE_FILENAME);
+    expect(body).not.toContain("QX7731");
+  });
+
+  it("states retention and payer email only as the code behaves", () => {
+    expect(text).not.toMatch(/until the demonstration is taken down/i);
+    expect(text).toContain("The site does not delete these records, or files kept for test orders, on its own.");
+    expect(text).toContain("When a sandbox checkout completes and PayPal provides one, we store the email address");
+    expect(text).toContain("may still carry a PayPal description that includes the file name");
+    for (const field of ["rush choice", "print purpose", "mesh measurements", "slicer results", "AI review notes", "PayPal sandbox order and capture IDs"]) {
+      expect(text).toContain(field);
+    }
   });
 
   it("defines a test order as the code creates it", () => {
@@ -111,6 +166,10 @@ describe("terms page", () => {
 
   it("does not present charges or refunds in the page metadata", async () => {
     const { metadata } = await import("@/app/terms/page");
+    expect(typeof metadata.description).toBe("string");
+    expect(typeof metadata.title).toBe("string");
+    expect(metadata.description).toMatch(/demonstration/i);
+    expect(metadata.title).toMatch(/terms/i);
     expect(String(metadata.description)).not.toMatch(/charges|refunds/i);
     expect(String(metadata.title)).not.toMatch(/refunds/i);
   });
