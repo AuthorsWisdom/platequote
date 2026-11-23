@@ -44,14 +44,28 @@ export function scrubMoney(text: string): string {
   return text.replace(MONEY, "the quoted price").replace(/\s{2,}/g, " ").trim();
 }
 
-/** Money out, and em or en dashes turned into commas so model prose matches the site's style. */
+// "$20–30" or "$20 to $30" collapses to one amount before scrubbing, so no stray "30" survives.
+const MONEY_RANGE = new RegExp(
+  String.raw`((?:\bUS)?[$€£]\s*${AMOUNT})\s*(?:[–—-]|to)\s*[$€£]?\s*${AMOUNT}`,
+  "gi",
+);
+
+/** Dashes out in the site's style: numeric ranges read "20 to 30", other em or en dashes become commas. */
+function undash(text: string): string {
+  return text
+    .replace(MONEY_RANGE, "$1")
+    .replace(/(\d)\s*[–—]\s*(?=\d)/g, "$1 to ")
+    .replace(/\s*[–—]\s*/g, ", ");
+}
+
+/** Money out, and em or en dashes removed so model prose matches the site's style. */
 function cleanModelText(text: string): string {
-  return scrubMoney(text.replace(/\s*[–—]\s*/g, ", "));
+  return scrubMoney(undash(text));
 }
 
 function scrubAdvice(advice: MaterialAdvice[]): MaterialAdvice[] {
   return advice.map((item) => ({
-    material: item.material.replace(MONEY, "").trim(),
+    material: item.material.replace(MONEY, "").replace(/\s*[–—]\s*/g, " ").replace(/\s{2,}/g, " ").trim(),
     fit: item.fit,
     reason: cleanModelText(item.reason),
   }));

@@ -76,6 +76,23 @@ describe("model prose", () => {
     expect(JSON.stringify(review)).not.toMatch(/[–—]/);
     expect(review.summary).toBe("Prints well, no supports.");
   });
+
+  it("reads numeric ranges as 'to', collapses money ranges, and strips dashes from material names", () => {
+    const review = reviewFromModel(
+      {
+        summary: "Use 20–30% infill.",
+        printable: true,
+        warnings: [{ severity: "info", title: "Cost", detail: "About $20–30 total.", fix: "From $5 to $9." }],
+        orientationNote: "Flat.",
+        materialAdvice: [{ material: "PLA — matte", fit: "good", reason: "Fine." }],
+      },
+      "anthropic",
+    );
+    expect(review.summary).toBe("Use 20 to 30% infill.");
+    expect(review.warnings[0].detail).toBe("About the quoted price total.");
+    expect(review.warnings[0].fix).toBe("From the quoted price.");
+    expect(review.materialAdvice[0].material).toBe("PLA matte");
+  });
 });
 
 describe("terms and UI", () => {
