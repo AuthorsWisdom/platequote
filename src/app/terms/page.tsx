@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description: "How PlateQuote quotes, charges, refunds, and handles your files.",
 };
 
-const EFFECTIVE = "October 29, 2026";
+const EFFECTIVE = "November 23, 2026";
 
 export default function TermsPage() {
   return (
@@ -47,9 +47,25 @@ export default function TermsPage() {
       <p>
         You upload a 3D model (STL or 3MF). The site slices it with a generic printer profile, prices the result
         from the shop&rsquo;s posted rates, and lets you pay with PayPal. The printability notes and material
-        advice on a quote come from a built-in reviewer that reads the slicer output; no outside AI service
-        receives your files. The notes are informational, not engineering advice, and they do not set the
-        price.
+        advice on a quote are written either by a built-in reviewer on our server or, when AI review is on, by
+        Anthropic&rsquo;s Claude AI model. The badge on the notes says which one wrote them (&ldquo;Built-in
+        review&rdquo; or &ldquo;AI review · Claude&rdquo;).
+      </p>
+      <p>
+        When AI review is on, we send Anthropic a short summary of the print, not your model file. The summary
+        is the measurements our slicer takes from the mesh (size, volume, surface area, overhang share, wall
+        thickness, triangle and part count, whether it is watertight and fits the printer bed), the slicer
+        estimate (grams, filament volume, print time, supports, profile and slicer name), the material,
+        quantity, and purpose you picked, and the printer&rsquo;s bed size and the shop&rsquo;s material list.
+        Your 3D model file, its file name, your email, and your payment and shipping details are never sent to
+        Anthropic. Anthropic&rsquo;s commercial terms say it may not train its models on data sent through its
+        API. Anthropic deletes that data within 30 days, but may keep it longer if its safety systems flag a
+        request or the law requires it.
+      </p>
+      <p>
+        AI-written notes can be wrong. The notes are informational, not engineering advice, and they never set
+        the price. Every price comes from the shop&rsquo;s posted rates. We filter dollar amounts out of the
+        AI&rsquo;s notes before you see them, and nothing the AI writes changes what you pay.
       </p>
       <p>By paying for an order you agree to these terms. If you do not agree, do not place an order.</p>
 
@@ -163,9 +179,12 @@ export default function TermsPage() {
           privacy statement.
         </li>
         <li>
-          <strong>Hosting:</strong> the site, its database, and the slicing worker run on Render in the United
-          States, which keeps standard server logs including IP addresses. Payments run on PayPal. No one other
-          than Render and PayPal receives your data.
+          <strong>Hosting and who receives your data:</strong> the site, its database, and the slicing worker
+          run on Render in the United States, which keeps standard server logs including IP addresses. Payments
+          run on PayPal. When AI review is on, Anthropic receives the print summary described above and nothing
+          else about you or your file. Your name and shipping address go to the shipping carrier on the label,
+          and emails you send us or we send you pass through our email provider. We share your data with no one
+          else, except where the law requires it.
         </li>
         <li>
           <strong>Your rights:</strong> email hello@platequote.tech to see, correct, or delete what we hold about

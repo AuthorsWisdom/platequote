@@ -22,7 +22,9 @@ export const modelReviewSchema = z.object({
   ),
 });
 
-const MONEY = /\$\s?\d|\b(?:usd|dollars?|cents?)\b/gi;
+// Whole amounts: "$3.50", "$1,200", "3.50 USD", "2 dollars", "five bucks" style unit words.
+const MONEY =
+  /\$\s?\d[\d,]*(?:\.\d+)?|\b\d[\d,]*(?:\.\d+)?\s*(?:usd|dollars?|cents?|bucks)\b|\b(?:usd|dollars?|cents?|bucks)\b/gi;
 
 export function scrubMoney(text: string): string {
   return text.replace(MONEY, "the quoted price").replace(/\s{2,}/g, " ").trim();

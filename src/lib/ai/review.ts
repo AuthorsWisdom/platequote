@@ -41,7 +41,7 @@ export async function reviewPrint(input: ReviewInput): Promise<AiReviewDTO> {
 function safeFailureReason(error: unknown): string {
   const message = error instanceof Error ? error.message : "llm_failed";
   return message
-    .replace(/sk-[A-Za-z0-9_-]{8,}/g, "[redacted]")
+    .replace(/sk-(?:ant-)?[A-Za-z0-9_-]{8,}/g, "[redacted]")
     .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
     .slice(0, 180);
 }
@@ -89,30 +89,52 @@ async function openAiReview(input: ReviewInput, apiKey: string): Promise<AiRevie
   return reviewFromModel(extractJson(content), "openai");
 }
 
+export const ANTHROPIC_DEFAULT_MODEL = "claude-haiku-5-5";
+const DEFAULT_TIMEOUT_MS = 15_000;
+
+export function reviewTimeoutMs(): number {
+  const raw = Number(process.env.LLM_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_TIMEOUT_MS;
+}
+
+// Current Claude models reject non-default temperature, so none is sent. Thinking is on by
+// default on Haiku 5.5 and Sonnet 5.5 and counts toward max_tokens; low effort keeps a short
+// printability note fast and leaves room for the JSON.
 async function anthropicReview(input: ReviewInput, apiKey: string): Promise<AiReviewDTO> {
-  const model = process.env.LLM_MODEL || "claude-sonnet-4-5";
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 1200,
-      temperature: 0.2,
-      system: REVIEW_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: JSON.stringify(userPayload(input)) }],
-    }),
-    signal: AbortSignal.timeout(30_000),
-  });
+  const model = process.env.LLM_MODEL?.trim() || ANTHROPIC_DEFAULT_MODEL;
+  let response: Response;
+  try {
+    response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 4000,
+        output_config: { effort: "low" },
+        system: REVIEW_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: JSON.stringify(userPayload(input)) }],
+      }),
+      signal: AbortSignal.timeout(reviewTimeoutMs()),
+    });
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      throw new Error("anthropic_timeout");
+    }
+    throw error;
+  }
   if (!response.ok) {
     throw new Error(`anthropic_http_${response.status}`);
   }
   const body = (await response.json()) as {
+    stop_reason?: string;
     content?: Array<{ type: string; text?: string }>;
   };
+  if (body.stop_reason === "refusal") throw new Error("anthropic_refusal");
+  if (body.stop_reason === "max_tokens") throw new Error("anthropic_truncated");
   const text = body.content?.find((block) => block.type === "text")?.text;
   if (!text) throw new Error("anthropic_empty");
   return reviewFromModel(extractJson(text), "anthropic");

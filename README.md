@@ -10,7 +10,7 @@ This repository is the hackathon build for the PayPal AI Hackathon (Devpost dead
 - Public quote page: upload (25 MB cap), sample parts, three.js preview, material, color, quantity, and purpose.
 - Slicing worker: PrusaSlicer 2.8.1 runs as its own process inside Docker. The response is JSON (grams, time, supports, bounding box) plus mesh facts from trimesh (bed fit, watertightness, overhang share, thin-wall flag).
 - Deterministic pricing. Quantity multiplies material and machine time. A shop minimum replaces a smaller sum. Rush is a flat fee added after that. Switching material after a slice rescales filament mass from the sliced volume and keeps the print time, and the page says so.
-- Printability review and material advice. With `LLM_PROVIDER=mock` or no API key, a built-in reviewer writes the notes from the mesh facts and slicer JSON. OpenAI-compatible and Anthropic providers are wired behind env vars. Dollar amounts the model tries to write are stripped. Comparison prices are attached afterward by the pricing engine.
+- Printability review and material advice. With `LLM_PROVIDER=mock` or no API key, a built-in reviewer writes the notes from the mesh facts and slicer JSON. With `LLM_PROVIDER=anthropic` and a key, Claude (default `claude-haiku-5-5`) writes the notes and the badge reads "AI review · Claude". The model receives only the mesh facts, the slicer summary, and the chosen material, quantity, and purpose; the mesh file, file name, and buyer details are never sent. A slow call (over `LLM_TIMEOUT_MS`, default 15000), an HTTP error, a refusal, or unparseable output falls back to the built-in reviewer, so a quote never waits on the model. An OpenAI-compatible provider is also wired. Dollar amounts the model tries to write are stripped, and the model never sets a price: comparison prices are attached afterward by the pricing engine.
 - PayPal checkout with JavaScript SDK v6 and Orders v2, sandbox or live per host. The server creates the order and captures it. Webhooks for `CHECKOUT.ORDER.APPROVED` (server captures) and `PAYMENT.CAPTURE.COMPLETED` (marks paid) are implemented. Without keys, checkout shows a clear message and quotes still work.
 - Shop orders table: quoted, paid, printing, shipped. Printing and shipped are local status marks.
 
@@ -96,7 +96,8 @@ Dev values below are not production secrets. Copy `.env.example` for local `npm 
 | `PAYPAL_ALLOW_UNVERIFIED_WEBHOOKS` | Do not set | `true` only for unsigned posts to `npm run dev`. Ignored in production |
 | `LLM_PROVIDER` | Optional (`mock` in the blueprint) | `mock`, `openai`, or `anthropic` |
 | `LLM_API_KEY` | Optional | Blank falls back to the mock reviewer |
-| `LLM_MODEL` | Optional | Overrides the provider default |
+| `LLM_MODEL` | Optional | Overrides the provider default (`claude-haiku-5-5` for Anthropic, `gpt-4o-mini` for OpenAI), for example `claude-sonnet-5-5` |
+| `LLM_TIMEOUT_MS` | Optional | Anthropic call timeout before falling back to the built-in reviewer. Default 15000 |
 | `LLM_BASE_URL` | Optional | OpenAI-compatible base URL |
 
 Local dev password and session secret, also used by Compose: `platequote-dev` and `platequote-dev-session-secret`. Local worker token: `platequote-dev-worker`.
