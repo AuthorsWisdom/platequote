@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { colorHex } from "@/lib/constants";
 import { formatDuration, formatGrams, formatPercent, formatUsd } from "@/lib/format";
-import { reviewBadgeLabel } from "@/lib/ai/labels";
+import { AI_NOTES_DISCLAIMER, reviewBadgeLabel } from "@/lib/ai/labels";
 import type { QuoteDTO } from "@/lib/types";
 
 type PaypalConfig = {
@@ -300,9 +300,7 @@ function ReviewBlock({
       </div>
       <div className="rounded-2xl border border-border bg-card p-5">
         <h2 className="font-heading text-2xl">Material advice</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The words come from the reviewer. Every dollar figure comes from the pricing engine.
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{AI_NOTES_DISCLAIMER}</p>
         <ul className="mt-4 space-y-3">
           {quotes.map((item) => {
             const stocked = quote.material.name.toLowerCase() === item.material.toLowerCase();

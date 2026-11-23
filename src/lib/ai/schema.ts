@@ -22,9 +22,21 @@ export const modelReviewSchema = z.object({
   ),
 });
 
-// Whole amounts: "$3.50", "$1,200", "3.50 USD", "2 dollars", "five bucks" style unit words.
-const MONEY =
-  /\$\s?\d[\d,]*(?:\.\d+)?|\b\d[\d,]*(?:\.\d+)?\s*(?:usd|dollars?|cents?|bucks)\b|\b(?:usd|dollars?|cents?|bucks)\b/gi;
+// Money in any spelling a model is likely to use: "$3.50", "$  5.00", "US$12", "USD 25.00",
+// "3.50 USD", "2 dollars", "40¢", "€9.99", "£7", and the bare unit words and symbols.
+const AMOUNT = String.raw`\d[\d,]*(?:\.\d+)?`;
+const MONEY = new RegExp(
+  [
+    String.raw`(?:\bUS)?\$\s*${AMOUNT}`,
+    String.raw`[€£]\s*${AMOUNT}`,
+    String.raw`\b(?:usd|us\s+dollars?|dollars?|bucks)\s*${AMOUNT}`,
+    String.raw`\b${AMOUNT}\s*(?:usd|dollars?|cents?|bucks)\b`,
+    String.raw`\b${AMOUNT}\s*¢`,
+    String.raw`\b(?:usd|dollars?|cents?|bucks)\b`,
+    String.raw`[$¢€£]`,
+  ].join("|"),
+  "gi",
+);
 
 export function scrubMoney(text: string): string {
   return text.replace(MONEY, "the quoted price").replace(/\s{2,}/g, " ").trim();
