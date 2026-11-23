@@ -132,8 +132,8 @@ export default function TermsPage() {
           server&rsquo;s disk. Until then, a quote link can still show the file.
         </li>
         <li>
-          <strong>Quote links</strong> are private addresses. Anyone who has your quote link can see the uploaded
-          file and the quote, so do not share it.
+          <strong>Quote links</strong> are private addresses. Anyone who has your quote link can see the quote and,
+          while it is kept, the uploaded file, so do not share it.
         </li>
         <li>
           <strong>Quote and test order records</strong> (file name, material, colour, quantity, rush choice,

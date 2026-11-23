@@ -25,9 +25,10 @@ Effective date stays November 23, 2026.
   you agree" now say demonstration / sandbox.
 - `src/app/layout.tsx`: site description "pay with PayPal" -> "try a PayPal sandbox checkout".
 - `src/lib/paypal.ts`: PayPal order description no longer carries the uploaded file name
-  (`<shop>: 3D print x <qty>`), so the page can truthfully say PayPal gets no file name.
+  (`<shop>: 3D print x <qty>`) for checkouts created from this change on; a sandbox checkout created
+  before it keeps its old description, which the page now says.
 - `src/app/terms/terms.test.ts`: updated pinned sentences; added demo, banned-phrase (24 live-sale /
-  refund / shipping / tax patterns), metadata, PayPal-disclosure (reads paypal.ts source) and test-order
+  refund / shipping / tax patterns), metadata, PayPal-disclosure (runs createPaypalCheckout and checks the outgoing body; see Codex rounds) and test-order
   definition tests.
 - `src/app/privacy/page.tsx` is only a redirect to `/terms#privacy`; no text there to change.
 
@@ -82,3 +83,36 @@ Open for a licensed attorney: whether a public PayPal sandbox checkout fits PayP
 ## PR
 
 https://github.com/AuthorsWisdom/platequote/pull/14 (OPEN, not merged)
+
+## Codex rounds (read-only `codex exec -s read-only`, Studio)
+
+Round 0 (pre-fix review): `VERDICT: FIX-FIRST`. No CRITICAL/HIGH; three MEDIUM:
+records/retention overclaim (takedown or request named as the end of retention; record fields
+incomplete), PayPal paragraph overclaim (pre-change PayPal orders keep the file-name description;
+payer email not always present), weak tests (file-name check matched only the old template;
+metadata check passed with both fields absent). Three LOW (SDK load, rate-limit memory, sandbox disputes).
+
+Fixes, commit da53ef9:
+- Records list now names rush choice, print purpose, mesh measurements, slicer results,
+  printability and AI review notes, and the PayPal sandbox order and capture IDs. "Until the
+  demonstration is taken down" is gone: "The site does not delete these records, or files kept for
+  test orders, on its own. We delete them when you ask us to."
+- PayPal paragraph: "A sandbox checkout started before these terms took effect may still carry a
+  PayPal description that includes the file name." Payer email stored "when a sandbox checkout
+  completes and PayPal provides one".
+- LOW wording: sandbox disputes are "a simulation" (and "or cancel" dropped); PayPal code loads on a
+  priced quote "that is still open for a sandbox checkout"; IP held "in server memory, not in the
+  database".
+- Tests: the PayPal test runs the real `createPaypalCheckout` with prisma and fetch mocked and an
+  upload named `zz-secret-bracket-QX7731.stl`, and asserts the outgoing create-order body lacks it;
+  the metadata test requires string title/description. New retention/payer-email test.
+- Must-FAIL controls (each run, then restored): file name in a separate `invoice_id` field -> 1 failed;
+  old `${originalFilename}` description template -> 1 failed; `metadata = {}` -> 1 failed; HEAD page
+  text -> retention test 1 failed. Restored tree: 11 passed.
+- `npm test` 114 passed (20 files); `npm run build` compiled, exit 0; `scripts/gate.sh` `GATE: PASS`, exit 0.
+
+Round 1 (re-review of origin/main..da53ef9): all three MEDIUMs resolved; two LOW.
+Verdict line quoted: `VERDICT: SHIP`
+
+After round 1, both LOWs fixed in wording: quote links show the file "while it is kept"; this note's
+PayPal and test lines updated. Not merged; main is PR-only and the merge is Christopher's.
