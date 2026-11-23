@@ -52,6 +52,14 @@ describe("terms page", () => {
     expect(text).toMatch(/usage polic/i);
   });
 
+  it("says checkout on platequote.tech is PayPal sandbox only, with no live orders claim", () => {
+    expect(text).toContain(
+      "On platequote.tech, checkout runs in PayPal's sandbox: no real money moves, and nothing paid here is printed or shipped.",
+    );
+    expect(text).not.toMatch(/live orders?/i);
+    expect(text).not.toMatch(/for software judging/i);
+  });
+
   it("has no em or en dashes", () => {
     expect(text).not.toMatch(/[–—]/);
   });
