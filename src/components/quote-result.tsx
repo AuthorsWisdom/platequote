@@ -173,8 +173,8 @@ export function QuoteResult({ id }: { id: string }) {
       {quote.mesh ? (
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Fact label="Bounding box" value={`${quote.mesh.boundingBoxMm.x} × ${quote.mesh.boundingBoxMm.y} × ${quote.mesh.boundingBoxMm.z} mm`} />
-          <Fact label="Print time" value={quote.printTimeSeconds != null ? formatDuration(quote.printTimeSeconds) : "—"} />
-          <Fact label="Supports" value={quote.supports == null ? "—" : quote.supports ? "Yes" : "No"} />
+          <Fact label="Print time" value={quote.printTimeSeconds != null ? formatDuration(quote.printTimeSeconds) : "n/a"} />
+          <Fact label="Supports" value={quote.supports == null ? "n/a" : quote.supports ? "Yes" : "No"} />
           <Fact
             label="Mesh"
             value={`${quote.mesh.watertight ? "Watertight" : "Not watertight"} · overhang ${formatPercent(quote.mesh.overhangFaceShare)}`}

@@ -64,7 +64,7 @@ export default function TermsPage() {
         sent and the built-in reviewer writes the notes.
       </p>
       <p>
-        Anthropic&rsquo;s commercial terms say it may not train its models on data sent through its API.
+        By default, Anthropic does not use inputs or outputs from its API to train its models.
         Under Anthropic&rsquo;s API data retention policy, the standard retention period is 30 days for both
         what we send and what the model returns. Anthropic may keep data longer when that is needed to enforce
         its usage policies or when the law requires it.

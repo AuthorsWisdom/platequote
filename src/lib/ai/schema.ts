@@ -22,17 +22,19 @@ export const modelReviewSchema = z.object({
   ),
 });
 
-// Money in any spelling a model is likely to use: "$3.50", "$  5.00", "US$12", "USD 25.00",
-// "3.50 USD", "2 dollars", "40¢", "€9.99", "£7", and the bare unit words and symbols.
-const AMOUNT = String.raw`\d[\d,]*(?:\.\d+)?`;
+// Money in any spelling a model is likely to use: "$3.50", "$  5.00", "$.99", "US$12", "USD 25.00",
+// "3.50 USD", "2 dollars", "40¢", "20-cent", "€9.99", "12,50 €", "50 EUR", "50 euros",
+// "£7", "10 GBP", and the bare unit words and symbols. "pounds" is left alone: it is also a weight.
+const AMOUNT = String.raw`(?:\d[\d,.]*\d|\d|\.\d+)`;
+const WORD_UNIT = String.raw`(?:usd|eur|gbp|us\s+dollars?|dollars?|euros?|cents?|bucks)`;
 const MONEY = new RegExp(
   [
     String.raw`(?:\bUS)?\$\s*${AMOUNT}`,
     String.raw`[€£]\s*${AMOUNT}`,
-    String.raw`\b(?:usd|us\s+dollars?|dollars?|bucks)\s*${AMOUNT}`,
-    String.raw`\b${AMOUNT}\s*(?:usd|dollars?|cents?|bucks)\b`,
-    String.raw`\b${AMOUNT}\s*¢`,
-    String.raw`\b(?:usd|dollars?|cents?|bucks)\b`,
+    String.raw`\b(?:usd|eur|gbp|us\s+dollars?|dollars?|euros?|bucks)\s*${AMOUNT}`,
+    String.raw`${AMOUNT}[\s-]*${WORD_UNIT}\b`,
+    String.raw`${AMOUNT}\s*[¢€£]`,
+    String.raw`\b${WORD_UNIT}\b`,
     String.raw`[$¢€£]`,
   ].join("|"),
   "gi",
@@ -42,11 +44,16 @@ export function scrubMoney(text: string): string {
   return text.replace(MONEY, "the quoted price").replace(/\s{2,}/g, " ").trim();
 }
 
+/** Money out, and em or en dashes turned into commas so model prose matches the site's style. */
+function cleanModelText(text: string): string {
+  return scrubMoney(text.replace(/\s*[–—]\s*/g, ", "));
+}
+
 function scrubAdvice(advice: MaterialAdvice[]): MaterialAdvice[] {
   return advice.map((item) => ({
     material: item.material.replace(MONEY, "").trim(),
     fit: item.fit,
-    reason: scrubMoney(item.reason),
+    reason: cleanModelText(item.reason),
   }));
 }
 
@@ -59,15 +66,15 @@ export function reviewFromModel(
     provider,
     mocked: false,
     mockReason: null,
-    summary: scrubMoney(parsed.summary),
+    summary: cleanModelText(parsed.summary),
     printable: parsed.printable,
     warnings: parsed.warnings.map((warning) => ({
       ...warning,
-      title: scrubMoney(warning.title),
-      detail: scrubMoney(warning.detail),
-      fix: scrubMoney(warning.fix),
+      title: cleanModelText(warning.title),
+      detail: cleanModelText(warning.detail),
+      fix: cleanModelText(warning.fix),
     })),
-    orientationNote: scrubMoney(parsed.orientationNote),
+    orientationNote: cleanModelText(parsed.orientationNote),
     materialAdvice: scrubAdvice(parsed.materialAdvice),
   };
 }

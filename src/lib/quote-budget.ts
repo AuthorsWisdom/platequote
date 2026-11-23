@@ -12,7 +12,11 @@ export function quoteDeadline(startedAt: number): number {
   return startedAt + QUOTE_ROUTE_MAX_MS - QUOTE_RESPONSE_MARGIN_MS;
 }
 
-/** The slicer gets what is left before the deadline, less the save reserve, capped at 120 s. */
-export function slicerTimeoutMs(deadline: number, now: number = Date.now()): number {
-  return Math.max(SLICER_MIN_MS, Math.min(SLICER_MAX_MS, Math.floor(deadline - now - QUOTE_SAVE_RESERVE_MS)));
+/**
+ * The slicer gets what is left before the deadline, less the save reserve, capped at 120 s.
+ * Null when less than a second is left: the caller skips the worker rather than overrun.
+ */
+export function slicerTimeoutMs(deadline: number, now: number = Date.now()): number | null {
+  const left = Math.min(SLICER_MAX_MS, Math.floor(deadline - now - QUOTE_SAVE_RESERVE_MS));
+  return left < SLICER_MIN_MS ? null : left;
 }

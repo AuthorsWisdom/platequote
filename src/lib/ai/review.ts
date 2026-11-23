@@ -2,6 +2,7 @@ import { ZodError } from "zod";
 import { REVIEW_SYSTEM_PROMPT } from "@/lib/ai/prompt";
 import { extractJson, reviewFromModel } from "@/lib/ai/schema";
 import { mockReview, type MockReviewInput } from "@/lib/ai/mock";
+import { toPublicReason } from "@/lib/ai/reasons";
 import { QUOTE_SAVE_RESERVE_MS } from "@/lib/quote-budget";
 import type { AiReviewDTO } from "@/lib/types";
 
@@ -45,7 +46,7 @@ function providerName(): "mock" | "openai" | "anthropic" {
 }
 
 function builtIn(input: ReviewInput, reason: string | null): AiReviewDTO {
-  return mockReview({ ...input, mockReason: reason });
+  return mockReview({ ...input, mockReason: toPublicReason(reason) });
 }
 
 export async function reviewPrint(input: ReviewInput, options: ReviewOptions = {}): Promise<AiReviewDTO> {
@@ -155,10 +156,10 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 const MIN_TIMEOUT_MS = 1_000;
 const MAX_TIMEOUT_MS = 30_000;
 
-/** LLM_TIMEOUT_MS as an integer clamped to 1000..30000; anything unreadable gives the 15000 default. */
+/** LLM_TIMEOUT_MS as an integer clamped to 1000..30000; unset or non-numeric gives the 15000 default. */
 export function reviewTimeoutMs(): number {
   const raw = Number(process.env.LLM_TIMEOUT_MS);
-  if (!process.env.LLM_TIMEOUT_MS?.trim() || !Number.isFinite(raw) || raw <= 0) return DEFAULT_TIMEOUT_MS;
+  if (!process.env.LLM_TIMEOUT_MS?.trim() || !Number.isFinite(raw)) return DEFAULT_TIMEOUT_MS;
   return Math.min(MAX_TIMEOUT_MS, Math.max(MIN_TIMEOUT_MS, Math.trunc(raw)));
 }
 

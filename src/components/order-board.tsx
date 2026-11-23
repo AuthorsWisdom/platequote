@@ -126,9 +126,9 @@ export function OrderBoard() {
                   ) : null}
                 </td>
                 <td className="px-3 py-3 text-muted-foreground">
-                  {order.quote.filamentGrams != null ? formatGrams(order.quote.filamentGrams) : "—"}
+                  {order.quote.filamentGrams != null ? formatGrams(order.quote.filamentGrams) : "n/a"}
                   {" · "}
-                  {order.quote.printTimeSeconds != null ? formatDuration(order.quote.printTimeSeconds) : "—"}
+                  {order.quote.printTimeSeconds != null ? formatDuration(order.quote.printTimeSeconds) : "n/a"}
                 </td>
                 <td className="px-3 py-3">{formatUsd(order.amountCents)}</td>
                 <td className="px-3 py-3">
