@@ -204,6 +204,15 @@ function isTimeout(error: unknown): boolean {
 }
 
 /** fetch is told not to follow redirects (a 307/308 would replay the POST and its token elsewhere). */
+/** Releases a reply that will not be read, so its connection goes back to the pool. */
+async function discardBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Already closed or errored: nothing to release.
+  }
+}
+
 function isRedirect(response: Response): boolean {
   return response.type === "opaqueredirect" || (response.status >= 300 && response.status < 400);
 }
@@ -271,9 +280,13 @@ async function postSlice(input: SliceInput, until: number, deps: SliceDeps): Pro
     return { asleep: true, result: sliceUnreachable };
   }
   // The worker's own token refusal. A 503 is only the worker's when it carries JSON (checked below).
-  if (response.status === 401) return { asleep: false, result: sliceUnauthorized };
+  if (response.status === 401) {
+    await discardBody(response);
+    return { asleep: false, result: sliceUnauthorized };
+  }
   if (isRedirect(response)) {
     console.warn(`[slicer] POST /slice status ${response.status}: redirect refused, not retried`);
+    await discardBody(response);
     return { asleep: false, result: sliceRedirected };
   }
   let text: string;
@@ -333,6 +346,8 @@ async function waitForWorker(waitUntil: number, deps: SliceDeps): Promise<boolea
         const body: unknown = await health.json();
         // The worker's own /health answers {"ok": true, ...}; anything else is not the worker yet.
         if (body && typeof body === "object" && (body as { ok?: unknown }).ok === true) return true;
+      } else {
+        await discardBody(health);
       }
     } catch {
       // Still waking: connection refused, timeout, or a non-JSON placeholder page.

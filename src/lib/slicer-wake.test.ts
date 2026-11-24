@@ -403,4 +403,23 @@ describe("sliceUpload wake and retry", () => {
     expect(result).toMatchObject({ ok: false, error: "worker_bad_response" });
     expect(m.fn).toHaveBeenCalledTimes(1);
   });
+
+  it("replies that are not read (redirect, 401, non-200 health) have their bodies released", async () => {
+    const replies: Response[] = [];
+    const keep = (r: Response) => (replies.push(r), r);
+    for (const first of [() => keep(html(307)), () => keep(json(401, { detail: "no" }))]) {
+      const clock = fakeDeps();
+      mockFetch([first], () => json(200, { ok: true }));
+      await sliceUpload(input(), clock.deps);
+    }
+    const clock = fakeDeps();
+    let probes = 0;
+    mockFetch([() => html(503), () => json(200, okSlice)], () => {
+      probes += 1;
+      return probes < 3 ? keep(html(503)) : json(200, { ok: true });
+    });
+    await sliceUpload(input(), clock.deps);
+    expect(replies).toHaveLength(4);
+    for (const r of replies) expect(r.bodyUsed).toBe(true);
+  });
 });

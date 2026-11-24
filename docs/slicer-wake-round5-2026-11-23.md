@@ -52,11 +52,63 @@ npm run build    -> exit 0; Compiled successfully in 1889ms
 scripts/gate.sh  -> worker pytest 16 passed; [gate.local] all sections passed; GATE: PASS
 ```
 
-## Codex rounds 5 and 6
+## Codex round 5 (read-only on 6709c17): VERDICT: FIX-FIRST
 
-Pending at commit time; results are added in the next commit on this branch.
+Codex: "Both round 4 fixes work on the paths they target." Remaining findings, verbatim in substance:
+
+- MEDIUM, quote-service.ts:264/285/296: "A connection reset after the upload, a gateway 504, or a 2xx with a readable but invalid JSON body can trigger a second slice. The first job may already have run." It asks to retry only on a response known to indicate a cold start.
+- LOW, quote-service.ts:275/332: the redirect return and the non-200 health path leave response bodies unread; cancel them.
+- Pre-existing (not verdict-setting): HIGH, route.ts:20 and quote-service.ts:527, route deadline does not bound multipart parsing and final DB writes.
+
+### Disposition
+
+- MEDIUM, not changed (design scope). The worker's POST /slice is stateless: `worker/server.py` and `worker/slice_job.py` write only into a `tempfile.TemporaryDirectory` and return computed numbers, with no database or outbound call. A duplicate slice therefore costs worker CPU inside the same budget, never a duplicate record, and the retry stays capped at one. The sleeping reply has no known signature (the outage doc never captured its status or body; that is why the log now records status, media type and length), so "retry only on a known cold-start response" cannot be written yet without dropping the fix this PR exists for. Asked Codex in round 6 to judge with that fact on the table.
+- LOW, fixed. `discardBody` cancels the body of a reply that will not be read: the redirect return, the 401 return, and every non-200 /health probe. New test "replies that are not read (redirect, 401, non-200 health) have their bodies released" (checks `bodyUsed` on each); 4 new mutants below.
+
+## Round 6 tree: must-fail controls
+
+```
+MUTANT [no retry after wake] exit=1 RED (caught) :: ['Tests  8 failed | 12 passed (20)']
+MUTANT [second retry allowed] exit=1 RED (caught) :: ['Tests  1 failed | 19 passed (20)']
+MUTANT [retry real errors] exit=1 RED (caught) :: ['Tests  10 failed | 10 passed (20)']
+MUTANT [503 always token (old mapping)] exit=1 RED (caught) :: ['Tests  12 failed | 8 passed (20)']
+MUTANT [504 JSON not treated as asleep] exit=1 RED (caught) :: ['Tests  1 failed | 19 passed (20)']
+MUTANT [timeout treated as asleep] exit=1 RED (caught) :: ['Tests  1 failed | 19 passed (20)']
+MUTANT [stalled body treated as asleep] exit=1 RED (caught) :: ['Tests  2 failed | 18 passed (20)']
+MUTANT [wake ignores budget] exit=1 RED (caught) :: ['Tests  1 failed | 19 passed (20)']
+MUTANT [retry gets the full budget again] exit=1 RED (caught) :: ['Tests  1 failed | 19 passed (20)']
+MUTANT [any 200 JSON counts as awake] exit=1 RED (caught) :: ['Tests  1 failed | 19 passed (20)']
+MUTANT [body text logged] exit=1 RED (caught) :: ['Tests  3 failed | 17 passed (20)']
+MUTANT [error message logged] exit=1 RED (caught) :: ['Tests  2 failed | 18 passed (20)']
+MUTANT [media type passed through raw] exit=1 RED (caught) :: ['Tests  1 failed | 19 passed (20)']
+MUTANT [cause code passed through raw] exit=1 RED (caught) :: ['Tests  1 failed | 19 passed (20)']
+MUTANT [undici timeout treated as asleep] exit=1 RED (caught) :: ['Tests  2 failed | 18 passed (20)']
+MUTANT [R5 POST follows redirects] exit=1 RED (caught) :: ['Tests  1 failed | 19 passed (20)']
+MUTANT [R5 health follows redirects] exit=1 RED (caught) :: ['Tests  1 failed | 19 passed (20)']
+MUTANT [R5 redirect treated as asleep] exit=1 RED (caught) :: ['Tests  2 failed | 18 passed (20)']
+MUTANT [R5 body phase skips undici timeout codes] exit=1 RED (caught) :: ['Tests  1 failed | 19 passed (20)']
+MUTANT [R6 redirect body not released] exit=1 RED (caught) :: ['Tests  1 failed | 19 passed (20)']
+MUTANT [R6 401 body not released] exit=1 RED (caught) :: ['Tests  1 failed | 19 passed (20)']
+MUTANT [R6 health body not released] exit=1 RED (caught) :: ['Tests  1 failed | 19 passed (20)']
+MUTANT [R6 discard is a no-op] exit=1 RED (caught) :: ['Tests  1 failed | 19 passed (20)']
+MUTANT [R5 failed 2xx body read resubmits] exit=1 RED (caught) :: ['Tests  1 failed | 19 passed (20)']
+```
+
+24 of 24 mutants turned the suite red (20 cases). Script: wake-mutants-r6.py in the session scratchpad.
+
+## Commands run (round 6 tree)
+
+```
+npm test         -> Tests 134 passed (134)
+npm run build    -> exit 0; Compiled successfully in 1559ms
+scripts/gate.sh  -> ok: worker pytest; [gate.local] all sections passed; GATE: PASS
+```
+
+## Codex round 6
+
+Pending at commit time; result recorded in the next commit.
 
 ## Open
 
-- Pre-existing HIGH (round 4): route-level deadline does not bound multipart parsing or the final DB writes. Out of scope for this PR; a separate change.
+- Pre-existing HIGH (rounds 4 and 5): route-level deadline does not bound multipart parsing or the final DB writes. Out of scope for this PR; a separate change.
 - Merge is his: `gh pr merge 15 --repo AuthorsWisdom/platequote`.
