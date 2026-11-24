@@ -14,7 +14,7 @@ import { getShopRecord, toMaterialDTO, toPrinterDTO } from "@/lib/shop";
 import type { MeshFactsDTO, OrderStatus, PriceBreakdownDTO, QuoteDTO, StoredReview } from "@/lib/types";
 import { loadModelBytes, pruneStaleUploads, storeUploadBytes } from "@/lib/upload-store";
 import { inspectUpload } from "@/lib/uploads";
-import { workerHeaders, workerMisconfigured } from "@/lib/worker-auth";
+import { workerHeaders, workerMisconfigured, workerToken } from "@/lib/worker-auth";
 
 const quoteInclude = {
   material: true,
@@ -119,7 +119,7 @@ export async function quoteModelFile(id: string) {
   return loadModelBytes(id, uploadDirectory());
 }
 
-async function sliceUpload(input: {
+type SliceInput = {
   bytes: Buffer;
   extension: ".stl" | ".3mf";
   materialSlug: string;
@@ -128,15 +128,124 @@ async function sliceUpload(input: {
   bedYmm: number;
   bedZmm: number;
   timeoutMs: number | null;
-}): Promise<SlicerResponse> {
-  const timedOut: SlicerResponse = {
-    ok: false,
-    error: "worker_timeout",
-    message: "Slicing took longer than this quote can wait. Try a smaller or simpler file.",
-    mesh: null,
-  };
-  // Not enough of the route budget left to slice and still save: skip the worker.
-  if (input.timeoutMs === null) return timedOut;
+};
+
+/** Clock and pause the wake path uses; tests swap in a fake clock. */
+export type SliceDeps = { now: () => number; sleep: (ms: number) => Promise<void> };
+
+const realSliceDeps: SliceDeps = {
+  now: () => Date.now(),
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+};
+
+/** After waiting for a sleeping worker, at least this much of the slice budget is kept for the slice itself. */
+export const WAKE_SLICE_RESERVE_MS = 15_000;
+const WAKE_POLL_INTERVAL_MS = 2_000;
+const WAKE_PROBE_TIMEOUT_MS = 10_000;
+const WAKE_MAX_PROBES = 100;
+
+const timedOut: SlicerResponse = {
+  ok: false,
+  error: "worker_timeout",
+  message: "Slicing took longer than this quote can wait. Try a smaller or simpler file.",
+  mesh: null,
+};
+
+const sliceWaking: SlicerResponse = {
+  ok: false,
+  error: "worker_waking",
+  message: "The slicer was waking up. Try again in a moment.",
+  mesh: null,
+};
+
+const sliceUnauthorized: SlicerResponse = {
+  ok: false,
+  error: "worker_unauthorized",
+  message: "The slicing worker refused the shared token. Check SLICER_WORKER_TOKEN on both services.",
+  mesh: null,
+};
+
+const sliceUnreachable: SlicerResponse = {
+  ok: false,
+  error: "worker_unreachable",
+  message: "The slicing worker is not reachable. Start it with docker compose and try again.",
+  mesh: null,
+};
+
+const sliceNotJson: SlicerResponse = {
+  ok: false,
+  error: "worker_bad_response",
+  message: "The slicing worker returned something that was not JSON.",
+  mesh: null,
+};
+
+const sliceRedirected: SlicerResponse = {
+  ok: false,
+  error: "worker_bad_response",
+  message: "The slicing worker answered with a redirect, which this host refuses. Check SLICER_WORKER_URL.",
+  mesh: null,
+};
+
+/** "asleep" means the request never reached the worker app: wait for /health, then try once more. */
+type SliceAttempt = { asleep: boolean; result: SlicerResponse };
+
+function isAbort(error: unknown): boolean {
+  return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+}
+
+function causeCode(error: unknown): string {
+  const cause = error instanceof Error ? (error.cause as { code?: unknown } | undefined) : undefined;
+  return typeof cause?.code === "string" ? cause.code : "";
+}
+
+/** An abort or a transport timeout, in either the connect or the body phase: slow, not asleep. */
+function isTimeout(error: unknown): boolean {
+  return isAbort(error) || TIMEOUT_CODES.has(causeCode(error));
+}
+
+/** fetch is told not to follow redirects (a 307/308 would replay the POST and its token elsewhere). */
+/** Releases a reply that will not be read, so its connection goes back to the pool. */
+async function discardBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Already closed or errored: nothing to release.
+  }
+}
+
+function isRedirect(response: Response): boolean {
+  return response.type === "opaqueredirect" || (response.status >= 300 && response.status < 400);
+}
+
+/** Transport timeouts from Node fetch: a slow worker, not a sleeping one, so never retried. */
+const TIMEOUT_CODES = new Set(["UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT", "ETIMEDOUT"]);
+const LOGGED_CODES = new Set([
+  ...TIMEOUT_CODES,
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "EPIPE",
+  "UND_ERR_SOCKET",
+  "UND_ERR_CLOSED",
+]);
+const LOGGED_ERROR_NAMES = new Set(["TypeError", "Error", "SocketError", "ConnectTimeoutError"]);
+const LOGGED_MEDIA_TYPES = new Set(["text/html", "text/plain", "application/json", "application/problem+json"]);
+
+/**
+ * Upstream text never reaches a log line (an echoed token could hide in any encoding), so the
+ * outage is named by fixed vocabularies only: anything outside the list logs as "other".
+ */
+function logField(value: string | null | undefined, allowed: Set<string>): string {
+  const bare = (value ?? "").split(";")[0].trim().toLowerCase();
+  if (!bare) return "none";
+  for (const item of allowed) if (item.toLowerCase() === bare) return item;
+  return "other";
+}
+
+function sliceForm(input: SliceInput): FormData {
   const body = new FormData();
   body.append("file", new Blob([new Uint8Array(input.bytes)]), `model${input.extension}`);
   body.append("material", input.materialSlug);
@@ -144,6 +253,115 @@ async function sliceUpload(input: {
   body.append("bed_x", String(input.bedXmm));
   body.append("bed_y", String(input.bedYmm));
   body.append("bed_z", String(input.bedZmm));
+  return body;
+}
+
+/** One POST /slice that cannot run past `until` (epoch ms). */
+async function postSlice(input: SliceInput, until: number, deps: SliceDeps): Promise<SliceAttempt> {
+  const body = sliceForm(input);
+  const timeoutMs = Math.floor(until - deps.now());
+  if (timeoutMs < 1) return { asleep: false, result: timedOut };
+  let response: Response;
+  try {
+    response = await fetch(`${workerBaseUrl()}/slice`, {
+      method: "POST",
+      headers: workerHeaders(),
+      body,
+      redirect: "manual",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (error) {
+    if (isTimeout(error)) return { asleep: false, result: timedOut };
+    const code = causeCode(error);
+    console.warn(
+      `[slicer] POST /slice could not connect: ` +
+        `${logField(error instanceof Error ? error.name : "", LOGGED_ERROR_NAMES)} ${logField(code, LOGGED_CODES)}`,
+    );
+    return { asleep: true, result: sliceUnreachable };
+  }
+  // The worker's own token refusal. A 503 is only the worker's when it carries JSON (checked below).
+  if (response.status === 401) {
+    await discardBody(response);
+    return { asleep: false, result: sliceUnauthorized };
+  }
+  if (isRedirect(response)) {
+    console.warn(`[slicer] POST /slice status ${response.status}: redirect refused, not retried`);
+    await discardBody(response);
+    return { asleep: false, result: sliceRedirected };
+  }
+  let text: string;
+  try {
+    text = await response.text();
+  } catch (error) {
+    if (isTimeout(error)) return { asleep: false, result: timedOut };
+    // Headers came back, so a 2xx reply means the worker took the job: never resubmit it.
+    const answered = response.status >= 200 && response.status < 300;
+    console.warn(`[slicer] POST /slice status ${response.status}: body could not be read`);
+    return { asleep: !answered, result: sliceNotJson };
+  }
+  let json: unknown;
+  let isJson = true;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    isJson = false;
+  }
+  if (!isJson || response.status === 502 || response.status === 504) {
+    // Render answers for a sleeping free worker fast, without reaching the app, with a body like this.
+    console.warn(
+      `[slicer] POST /slice status ${response.status}, unexpected reply: ` +
+        `content-type ${logField(response.headers.get("content-type"), LOGGED_MEDIA_TYPES)}, ${text.length} chars, ` +
+        `${isJson ? "JSON" : "not JSON"}`,
+    );
+    return { asleep: true, result: isJson ? sliceUnreachable : sliceNotJson };
+  }
+  if (response.status === 503) return { asleep: false, result: sliceUnauthorized };
+  try {
+    return { asleep: false, result: parseSlicerResult(json) };
+  } catch {
+    return {
+      asleep: false,
+      result: {
+        ok: false,
+        error: "worker_bad_response",
+        message: "The slicing worker returned JSON that does not match the quote contract.",
+        mesh: null,
+      },
+    };
+  }
+}
+
+/** Polls GET /health until it answers 200 JSON or `waitUntil` (epoch ms) passes. */
+async function waitForWorker(waitUntil: number, deps: SliceDeps): Promise<boolean> {
+  for (let probe = 0; probe < WAKE_MAX_PROBES; probe += 1) {
+    const left = waitUntil - deps.now();
+    if (left <= 0) return false;
+    try {
+      const health = await fetch(`${workerBaseUrl()}/health`, {
+        cache: "no-store",
+        redirect: "manual",
+        signal: AbortSignal.timeout(Math.max(1, Math.min(WAKE_PROBE_TIMEOUT_MS, left))),
+      });
+      if (health.status === 200) {
+        const body: unknown = await health.json();
+        // The worker's own /health answers {"ok": true, ...}; anything else is not the worker yet.
+        if (body && typeof body === "object" && (body as { ok?: unknown }).ok === true) return true;
+      } else {
+        await discardBody(health);
+      }
+    } catch {
+      // Still waking: connection refused, timeout, or a non-JSON placeholder page.
+    }
+    const pause = Math.min(WAKE_POLL_INTERVAL_MS, waitUntil - deps.now());
+    if (pause <= 0) return false;
+    await deps.sleep(pause);
+  }
+  return false;
+}
+
+export async function sliceUpload(input: SliceInput, deps: SliceDeps = realSliceDeps): Promise<SlicerResponse> {
+  // Not enough of the route budget left to slice and still save: skip the worker.
+  if (input.timeoutMs === null) return timedOut;
   if (workerMisconfigured()) {
     return {
       ok: false,
@@ -152,52 +370,19 @@ async function sliceUpload(input: {
       mesh: null,
     };
   }
-  let response: Response;
-  try {
-    response = await fetch(`${workerBaseUrl()}/slice`, {
-      method: "POST",
-      headers: workerHeaders(),
-      body,
-      signal: AbortSignal.timeout(input.timeoutMs),
-    });
-  } catch (error) {
-    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) return timedOut;
-    return {
-      ok: false,
-      error: "worker_unreachable",
-      message: "The slicing worker is not reachable. Start it with docker compose and try again.",
-      mesh: null,
-    };
+  // Every attempt and every wait ends by this instant, so the route keeps its save reserve.
+  const sliceBy = deps.now() + input.timeoutMs;
+  const first = await postSlice(input, sliceBy, deps);
+  if (!first.asleep) return first.result;
+  // The worker looked asleep. Wait for it inside the budget, then retry exactly once.
+  const awake = await waitForWorker(sliceBy - WAKE_SLICE_RESERVE_MS, deps);
+  const left = sliceBy - deps.now();
+  if (!awake || left < 1_000) {
+    console.warn(`[slicer] worker did not wake inside the quote budget (${input.timeoutMs} ms)`);
+    return sliceWaking;
   }
-  if (response.status === 401 || response.status === 503) {
-    return {
-      ok: false,
-      error: "worker_unauthorized",
-      message: "The slicing worker refused the shared token. Check SLICER_WORKER_TOKEN on both services.",
-      mesh: null,
-    };
-  }
-  let json: unknown;
-  try {
-    json = await response.json();
-  } catch {
-    return {
-      ok: false,
-      error: "worker_bad_response",
-      message: "The slicing worker returned something that was not JSON.",
-      mesh: null,
-    };
-  }
-  try {
-    return parseSlicerResult(json);
-  } catch {
-    return {
-      ok: false,
-      error: "worker_bad_response",
-      message: "The slicing worker returned JSON that does not match the quote contract.",
-      mesh: null,
-    };
-  }
+  const second = await postSlice(input, sliceBy, deps);
+  return second.result;
 }
 
 function priceFromSlicer(input: {
