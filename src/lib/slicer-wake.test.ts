@@ -340,4 +340,67 @@ describe("sliceUpload wake and retry", () => {
     expect(posts).toHaveLength(2);
     for (const t of timeouts) expect(t.at + t.ms).toBeLessThanOrEqual(start + budget);
   });
+
+  it("redirects are never followed: POST and /health ask for manual, a 307 is final", async () => {
+    for (const status of [307, 308]) {
+      const clock = fakeDeps();
+      const m = mockFetch(
+        [() => new Response(null, { status, headers: { location: "https://elsewhere.test/slice" } }), () => json(200, okSlice)],
+        () => json(200, { ok: true }),
+      );
+      const result = await sliceUpload(input(), clock.deps);
+      expect(result).toMatchObject({ ok: false, error: "worker_bad_response" });
+      expect(m.fn).toHaveBeenCalledTimes(1);
+      expect(m.fn.mock.calls[0][1]?.redirect).toBe("manual");
+    }
+    const clock = fakeDeps();
+    const m = mockFetch([() => html(503), () => json(200, okSlice)], () => json(200, { ok: true }));
+    await sliceUpload(input(), clock.deps);
+    const calls = m.fn.mock.calls.map(([u, init]) => ({ u: String(u), redirect: init?.redirect }));
+    expect(calls.filter((c) => c.u.endsWith("/health")).length).toBeGreaterThan(0);
+    for (const c of calls) expect(c.redirect).toBe("manual");
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("elsewhere");
+  });
+
+  it("a body read that fails with an undici timeout code is not retried", async () => {
+    for (const status of [200, 503]) {
+      const clock = fakeDeps();
+      const m = mockFetch(
+        [
+          () =>
+            ({
+              status,
+              type: "basic",
+              headers: new Headers({ "content-type": "application/json" }),
+              text: () => Promise.reject(new TypeError("terminated", { cause: { code: "UND_ERR_BODY_TIMEOUT" } })),
+            }) as unknown as Response,
+          () => json(200, okSlice),
+        ],
+        () => json(200, { ok: true }),
+      );
+      const result = await sliceUpload(input(), clock.deps);
+      expect(result).toMatchObject({ ok: false, error: "worker_timeout" });
+      expect(m.fn).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("a 2xx whose body cannot be read is final, never resubmitted", async () => {
+    const clock = fakeDeps();
+    const m = mockFetch(
+      [
+        () =>
+          ({
+            status: 200,
+            type: "basic",
+            headers: new Headers({ "content-type": "application/json" }),
+            text: () => Promise.reject(new TypeError("terminated", { cause: { code: "ECONNRESET" } })),
+          }) as unknown as Response,
+        () => json(200, okSlice),
+      ],
+      () => json(200, { ok: true }),
+    );
+    const result = await sliceUpload(input(), clock.deps);
+    expect(result).toMatchObject({ ok: false, error: "worker_bad_response" });
+    expect(m.fn).toHaveBeenCalledTimes(1);
+  });
 });

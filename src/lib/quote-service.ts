@@ -179,11 +179,33 @@ const sliceNotJson: SlicerResponse = {
   mesh: null,
 };
 
+const sliceRedirected: SlicerResponse = {
+  ok: false,
+  error: "worker_bad_response",
+  message: "The slicing worker answered with a redirect, which this host refuses. Check SLICER_WORKER_URL.",
+  mesh: null,
+};
+
 /** "asleep" means the request never reached the worker app: wait for /health, then try once more. */
 type SliceAttempt = { asleep: boolean; result: SlicerResponse };
 
 function isAbort(error: unknown): boolean {
   return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+}
+
+function causeCode(error: unknown): string {
+  const cause = error instanceof Error ? (error.cause as { code?: unknown } | undefined) : undefined;
+  return typeof cause?.code === "string" ? cause.code : "";
+}
+
+/** An abort or a transport timeout, in either the connect or the body phase: slow, not asleep. */
+function isTimeout(error: unknown): boolean {
+  return isAbort(error) || TIMEOUT_CODES.has(causeCode(error));
+}
+
+/** fetch is told not to follow redirects (a 307/308 would replay the POST and its token elsewhere). */
+function isRedirect(response: Response): boolean {
+  return response.type === "opaqueredirect" || (response.status >= 300 && response.status < 400);
 }
 
 /** Transport timeouts from Node fetch: a slow worker, not a sleeping one, so never retried. */
@@ -236,13 +258,12 @@ async function postSlice(input: SliceInput, until: number, deps: SliceDeps): Pro
       method: "POST",
       headers: workerHeaders(),
       body,
+      redirect: "manual",
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {
-    if (isAbort(error)) return { asleep: false, result: timedOut };
-    const cause = error instanceof Error ? (error.cause as { code?: unknown } | undefined) : undefined;
-    const code = typeof cause?.code === "string" ? cause.code : "";
-    if (TIMEOUT_CODES.has(code)) return { asleep: false, result: timedOut };
+    if (isTimeout(error)) return { asleep: false, result: timedOut };
+    const code = causeCode(error);
     console.warn(
       `[slicer] POST /slice could not connect: ` +
         `${logField(error instanceof Error ? error.name : "", LOGGED_ERROR_NAMES)} ${logField(code, LOGGED_CODES)}`,
@@ -251,13 +272,19 @@ async function postSlice(input: SliceInput, until: number, deps: SliceDeps): Pro
   }
   // The worker's own token refusal. A 503 is only the worker's when it carries JSON (checked below).
   if (response.status === 401) return { asleep: false, result: sliceUnauthorized };
+  if (isRedirect(response)) {
+    console.warn(`[slicer] POST /slice status ${response.status}: redirect refused, not retried`);
+    return { asleep: false, result: sliceRedirected };
+  }
   let text: string;
   try {
     text = await response.text();
   } catch (error) {
-    if (isAbort(error)) return { asleep: false, result: timedOut };
+    if (isTimeout(error)) return { asleep: false, result: timedOut };
+    // Headers came back, so a 2xx reply means the worker took the job: never resubmit it.
+    const answered = response.status >= 200 && response.status < 300;
     console.warn(`[slicer] POST /slice status ${response.status}: body could not be read`);
-    return { asleep: true, result: sliceNotJson };
+    return { asleep: !answered, result: sliceNotJson };
   }
   let json: unknown;
   let isJson = true;
@@ -299,6 +326,7 @@ async function waitForWorker(waitUntil: number, deps: SliceDeps): Promise<boolea
     try {
       const health = await fetch(`${workerBaseUrl()}/health`, {
         cache: "no-store",
+        redirect: "manual",
         signal: AbortSignal.timeout(Math.max(1, Math.min(WAKE_PROBE_TIMEOUT_MS, left))),
       });
       if (health.status === 200) {
