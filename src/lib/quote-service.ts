@@ -154,7 +154,7 @@ const timedOut: SlicerResponse = {
 const sliceWaking: SlicerResponse = {
   ok: false,
   error: "worker_waking",
-  message: "The slicer was waking up. Try again in a moment.",
+  message: "The slicer was not ready. Try again in a moment.",
   mesh: null,
 };
 
@@ -307,7 +307,7 @@ async function postSlice(input: SliceInput, until: number, deps: SliceDeps): Pro
     isJson = false;
   }
   if (!isJson || response.status === 502 || response.status === 504) {
-    // Render answers for a sleeping free worker fast, without reaching the app, with a body like this.
+    // Render answers for a sleeping, restarting, or deploying worker fast, without reaching the app, with a body like this.
     console.warn(
       `[slicer] POST /slice status ${response.status}, unexpected reply: ` +
         `content-type ${logField(response.headers.get("content-type"), LOGGED_MEDIA_TYPES)}, ${text.length} chars, ` +
@@ -378,7 +378,7 @@ export async function sliceUpload(input: SliceInput, deps: SliceDeps = realSlice
   const awake = await waitForWorker(sliceBy - WAKE_SLICE_RESERVE_MS, deps);
   const left = sliceBy - deps.now();
   if (!awake || left < 1_000) {
-    console.warn(`[slicer] worker did not wake inside the quote budget (${input.timeoutMs} ms)`);
+    console.warn(`[slicer] worker was not ready inside the quote budget (${input.timeoutMs} ms)`);
     return sliceWaking;
   }
   const second = await postSlice(input, sliceBy, deps);

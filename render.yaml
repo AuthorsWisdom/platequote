@@ -1,12 +1,14 @@
-# Render blueprint for PlateQuote (free plans, ruled 2026-10-28 "free plan for now").
+# Render blueprint for PlateQuote. Plans as of 2026-11-23: the web app is on the free plan
+# (ruled 2026-10-28 "free plan for now"), the slicer worker is on the paid Starter plan, and
+# Postgres is on the paid Basic-256mb plan. Keep these plan lines equal to what the dashboard
+# shows: a sync is rejected whole when one line asks for a downgrade.
 # Syncing this blueprint is the owner's step. Editing the file does not deploy by itself.
-# Free web services have an ephemeral disk and sleep after 15 minutes idle, so the first
+# The free web app has an ephemeral disk and sleeps after 15 minutes idle, so the first
 # request after a sleep is slow. Uploaded meshes are stored in Postgres (QuoteFile) so a
 # paid order's model survives a restart; UPLOAD_DIR is only a local cache. Unpaid uploads
-# are pruned from the database after 48 hours. The free Postgres has a time limit on
-# Render's side; upgrade it before judging if it is close to expiry.
-# The slicer worker runs as a second free web service because private services have no
-# free plan. Set SLICER_WORKER_URL in the dashboard if Render suffixes the worker's name.
+# are pruned from the database after 48 hours.
+# The slicer worker runs as a second web service on Starter so it does not sleep.
+# Set SLICER_WORKER_URL in the dashboard if Render suffixes the worker's name.
 #
 # platequote-worker-auth holds one generated SLICER_WORKER_TOKEN and is linked to both
 # services, so /slice and the web app share the same secret. Do not set

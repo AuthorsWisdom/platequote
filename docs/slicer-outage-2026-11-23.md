@@ -47,6 +47,10 @@ The 18:31 manual `/health` probe woke the worker. Live quote after it was up:
 
 ## Recurrence and the fix
 
+Superseded 2026-11-23 20:26: the worker moved to the paid Starter plan (PRs #17 and #18) and no
+longer sleeps, and the wake-and-retry path shipped in PR #15. The text below is the record as
+written at the time of the outage, not current guidance.
+
 It recurs 15 minutes after the last worker request (next window: about 18:49 if idle).
 
 Fix step (no code change): have the keep-warm pinger also `GET
