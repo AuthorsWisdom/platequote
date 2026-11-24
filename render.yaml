@@ -78,6 +78,6 @@ services:
 
 databases:
   - name: platequote-db
-    plan: free
+    plan: basic-256mb
     databaseName: platequote
     user: platequote
