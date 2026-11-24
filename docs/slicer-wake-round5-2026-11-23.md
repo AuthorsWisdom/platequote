@@ -104,9 +104,15 @@ npm run build    -> exit 0; Compiled successfully in 1559ms
 scripts/gate.sh  -> ok: worker pytest; [gate.local] all sections passed; GATE: PASS
 ```
 
-## Codex round 6
+## Codex round 6 (read-only on edc879d): VERDICT: SHIP
 
-Pending at commit time; result recorded in the next commit.
+- Round 5 LOW closed: "The redirect and 401 returns and each non-200 health probe cancel their response bodies. The new test covers all three paths."
+- Round 5 MEDIUM accepted: "I verified that the worker uses temporary files and a local subprocess, with no database writes or outbound service calls in the slice path. A replay can spend extra worker CPU but cannot create a second quote or order." and "I judge the bounded replay acceptable." It notes the worker subprocess has its own timeout and can outlive the web request.
+- LOW (left as is so the reviewed head stays the shipped head): the `SliceAttempt` comment at quote-service.ts:189 says `asleep` proves the request never reached the worker; it only marks the failure as eligible for a wake check and one retry.
+- Pre-existing (not verdict-setting): the route-deadline HIGH, route.ts:20 and quote-service.ts:542.
+- Codex ran `git diff --check` (passed); its sandbox could not run vitest, so the test and mutant results above are from the Studio runs.
+
+Code head reviewed: edc879d. This commit changes only this document.
 
 ## Open
 
