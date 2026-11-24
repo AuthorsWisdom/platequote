@@ -187,13 +187,14 @@ function isAbort(error: unknown): boolean {
 }
 
 /**
- * Text from upstream, made safe for a log line: the shared token is removed, and so is any long
- * unbroken run (an echoed token in encoded form looks like one), then it is cut to 200 chars.
+ * Upstream text never reaches a log line (an echoed token could hide in any encoding), so the
+ * outage is named by fixed fields only: a bare media type and a short error code.
  */
-function logSnippet(text: string): string {
+function logField(value: string | null | undefined): string {
+  const match = /^[A-Za-z0-9._+/-]{1,64}/.exec((value ?? "").trim());
   const token = workerToken();
-  const literal = token ? text.split(token).join("[redacted]") : text;
-  return literal.replace(/[^\s<>"']{24,}/g, "[long]").slice(0, 200);
+  if (!match || (token && match[0].includes(token))) return "none";
+  return match[0];
 }
 
 function sliceForm(input: SliceInput): FormData {
@@ -222,8 +223,11 @@ async function postSlice(input: SliceInput, until: number, deps: SliceDeps): Pro
     });
   } catch (error) {
     if (isAbort(error)) return { asleep: false, result: timedOut };
-    const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-    console.warn(`[slicer] POST /slice could not connect: ${JSON.stringify(logSnippet(detail))}`);
+    const cause = error instanceof Error ? (error.cause as { code?: unknown } | undefined) : undefined;
+    const code = typeof cause?.code === "string" ? cause.code : "";
+    console.warn(
+      `[slicer] POST /slice could not connect: ${logField(error instanceof Error ? error.name : "unknown")} ${logField(code)}`,
+    );
     return { asleep: true, result: sliceUnreachable };
   }
   // The worker's own token refusal. A 503 is only the worker's when it carries JSON (checked below).
@@ -246,7 +250,9 @@ async function postSlice(input: SliceInput, until: number, deps: SliceDeps): Pro
   if (!isJson || response.status === 502 || response.status === 504) {
     // Render answers for a sleeping free worker fast, without reaching the app, with a body like this.
     console.warn(
-      `[slicer] POST /slice status ${response.status}, unexpected body: ${JSON.stringify(logSnippet(text))}`,
+      `[slicer] POST /slice status ${response.status}, unexpected reply: ` +
+        `content-type ${logField(response.headers.get("content-type"))}, ${text.length} chars, ` +
+        `${isJson ? "JSON" : "not JSON"}`,
     );
     return { asleep: true, result: isJson ? sliceUnreachable : sliceNotJson };
   }

@@ -203,24 +203,40 @@ describe("sliceUpload wake and retry", () => {
     }
   });
 
-  it("a short token echoed between spaces is still redacted", async () => {
+  it("a short token echoed in the body or error is never logged", async () => {
     vi.stubEnv("SLICER_WORKER_TOKEN", "pq9short");
     const clock = fakeDeps();
-    mockFetch([() => html(503, "<p>token pq9short here</p>")], () => json(200, { ok: true }));
+    mockFetch(
+      [
+        () => new Response("<p>token pq9short %70%71%39 here</p>", { status: 503, headers: { "content-type": "pq9short" } }),
+        () => { throw new TypeError("fetch failed pq9short", { cause: { code: "pq9short" } }); },
+      ],
+      () => json(200, { ok: true }),
+    );
     await sliceUpload(input(), clock.deps);
     const logged = warn.mock.calls.map((c: unknown[]) => c.join(" ")).join("\n");
-    expect(logged).toContain("[redacted]");
+    expect(logged).toContain("status 503");
     expect(logged).not.toContain("pq9short");
+    expect(logged).not.toContain("%70");
   });
 
-  it("logs a body snippet of at most 200 chars", async () => {
+  it("logs status, media type, length and connect code, never body text", async () => {
     const clock = fakeDeps();
-    mockFetch([() => html(503, "word ".repeat(1000))], () => json(200, { ok: true }));
+    mockFetch(
+      [
+        () => html(503, "<title>Service waking</title>" + "word ".repeat(1000)),
+        () => { throw new TypeError("fetch failed", { cause: { code: "ECONNREFUSED" } }); },
+      ],
+      () => json(200, { ok: true }),
+    );
     await sliceUpload(input(), clock.deps);
-    const line = String(warn.mock.calls[0][0]);
-    const snippet = JSON.parse(line.split("unexpected body: ")[1]) as string;
-    expect(snippet.startsWith("word word")).toBe(true);
-    expect(snippet.length).toBeLessThanOrEqual(200);
+    const logged = warn.mock.calls.map((c: unknown[]) => c.join(" ")).join("\n");
+    expect(logged).toContain("status 503");
+    expect(logged).toContain("content-type text/html");
+    expect(logged).toContain("not JSON");
+    expect(logged).toContain("ECONNREFUSED");
+    expect(logged).not.toContain("word");
+    expect(logged).not.toContain("waking</title>");
   });
 
   it("health must be the worker's 200 {ok: true}, not any JSON", async () => {
@@ -250,16 +266,30 @@ describe("sliceUpload wake and retry", () => {
     expect(m.fn).toHaveBeenCalledTimes(1);
   });
 
-  it("a body that stalls until the timeout is not retried", async () => {
+  it("a body that stalls until the POST signal aborts is not retried", async () => {
     const clock = fakeDeps();
-    const stalled = {
-      status: 200,
-      text: () => Promise.reject(new DOMException("timed out", "TimeoutError")),
-    } as unknown as Response;
-    const m = mockFetch([() => stalled], () => json(200, { ok: true }));
-    const result = await sliceUpload(input(), clock.deps);
+    let started = 0;
+    const m = mockFetch(
+      [
+        (_u, init) => {
+          started = Date.now();
+          const signal = init?.signal as AbortSignal;
+          return {
+            status: 200,
+            headers: new Headers(),
+            text: () =>
+              new Promise<string>((_resolve, reject) => {
+                signal.addEventListener("abort", () => reject(signal.reason));
+              }),
+          } as unknown as Response;
+        },
+      ],
+      () => json(200, { ok: true }),
+    );
+    const result = await sliceUpload(input(1_200), clock.deps);
     expect(result).toMatchObject({ ok: false, error: "worker_timeout" });
     expect(m.fn).toHaveBeenCalledTimes(1);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(1_000);
   });
 
   it("each POST timeout ends by the slice budget, including the retry", async () => {
