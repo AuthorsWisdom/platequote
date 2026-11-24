@@ -74,3 +74,5 @@ Codex's sandbox could not run vitest (temp dir denied) in any round; it read the
 - No SHIP verdict yet: a fourth Codex round on the final commit is the remaining check before merge.
 - Not exercised against the live Render worker; the asleep reply's exact body is still unknown (now logged as status, media type, length).
 - Merge is his: `gh pr merge 15 --repo AuthorsWisdom/platequote`.
+
+Reworded 2026-11-23 after the worker moved to the paid Starter plan: the `worker_waking` message now reads "The slicer was not ready. Try again in a moment.", since a paid worker can be restarting or deploying, not sleeping.

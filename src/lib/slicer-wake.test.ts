@@ -5,7 +5,7 @@ vi.mock("@/lib/db", () => ({ prisma: {} }));
 import { sliceUpload, WAKE_SLICE_RESERVE_MS, type SliceDeps } from "@/lib/quote-service";
 
 const TOKEN = "tok-secret-do-not-log-1234";
-const WAKING = "The slicer was waking up. Try again in a moment.";
+const WAKING = "The slicer was not ready. Try again in a moment.";
 
 const okSlice = {
   ok: true,
