@@ -208,8 +208,16 @@ describe("sliceUpload wake and retry", () => {
     const clock = fakeDeps();
     mockFetch(
       [
-        () => new Response("<p>token pq9short %70%71%39 here</p>", { status: 503, headers: { "content-type": "pq9short" } }),
-        () => { throw new TypeError("fetch failed pq9short", { cause: { code: "pq9short" } }); },
+        () =>
+          new Response("<p>token pq9short %70%71%39 here</p>", {
+            status: 503,
+            headers: { "content-type": "text/%70%71%39short; pq9short" },
+          }),
+        () => {
+          const error = new TypeError("fetch failed pq9short", { cause: { code: "%70%71%39short" } });
+          error.name = "pq9short";
+          throw error;
+        },
       ],
       () => json(200, { ok: true }),
     );
@@ -218,6 +226,8 @@ describe("sliceUpload wake and retry", () => {
     expect(logged).toContain("status 503");
     expect(logged).not.toContain("pq9short");
     expect(logged).not.toContain("%70");
+    expect(logged).toContain("content-type other");
+    expect(logged).toContain("could not connect: other other");
   });
 
   it("logs status, media type, length and connect code, never body text", async () => {
@@ -264,6 +274,19 @@ describe("sliceUpload wake and retry", () => {
     const result = await sliceUpload(input(), clock.deps);
     expect(result).toMatchObject({ ok: false, error: "worker_timeout" });
     expect(m.fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("a Node transport timeout (undici cause code) is not retried", async () => {
+    for (const code of ["UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT"]) {
+      const clock = fakeDeps();
+      const m = mockFetch(
+        [() => { throw new TypeError("fetch failed", { cause: { code } }); }, () => json(200, okSlice)],
+        () => json(200, { ok: true }),
+      );
+      const result = await sliceUpload(input(), clock.deps);
+      expect(result).toMatchObject({ ok: false, error: "worker_timeout" });
+      expect(m.fn).toHaveBeenCalledTimes(1);
+    }
   });
 
   it("a body that stalls until the POST signal aborts is not retried", async () => {

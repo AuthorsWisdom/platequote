@@ -186,15 +186,32 @@ function isAbort(error: unknown): boolean {
   return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
+/** Transport timeouts from Node fetch: a slow worker, not a sleeping one, so never retried. */
+const TIMEOUT_CODES = new Set(["UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT", "ETIMEDOUT"]);
+const LOGGED_CODES = new Set([
+  ...TIMEOUT_CODES,
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "EPIPE",
+  "UND_ERR_SOCKET",
+  "UND_ERR_CLOSED",
+]);
+const LOGGED_ERROR_NAMES = new Set(["TypeError", "Error", "SocketError", "ConnectTimeoutError"]);
+const LOGGED_MEDIA_TYPES = new Set(["text/html", "text/plain", "application/json", "application/problem+json"]);
+
 /**
  * Upstream text never reaches a log line (an echoed token could hide in any encoding), so the
- * outage is named by fixed fields only: a bare media type and a short error code.
+ * outage is named by fixed vocabularies only: anything outside the list logs as "other".
  */
-function logField(value: string | null | undefined): string {
-  const match = /^[A-Za-z0-9._+/-]{1,64}/.exec((value ?? "").trim());
-  const token = workerToken();
-  if (!match || (token && match[0].includes(token))) return "none";
-  return match[0];
+function logField(value: string | null | undefined, allowed: Set<string>): string {
+  const bare = (value ?? "").split(";")[0].trim().toLowerCase();
+  if (!bare) return "none";
+  for (const item of allowed) if (item.toLowerCase() === bare) return item;
+  return "other";
 }
 
 function sliceForm(input: SliceInput): FormData {
@@ -225,8 +242,10 @@ async function postSlice(input: SliceInput, until: number, deps: SliceDeps): Pro
     if (isAbort(error)) return { asleep: false, result: timedOut };
     const cause = error instanceof Error ? (error.cause as { code?: unknown } | undefined) : undefined;
     const code = typeof cause?.code === "string" ? cause.code : "";
+    if (TIMEOUT_CODES.has(code)) return { asleep: false, result: timedOut };
     console.warn(
-      `[slicer] POST /slice could not connect: ${logField(error instanceof Error ? error.name : "unknown")} ${logField(code)}`,
+      `[slicer] POST /slice could not connect: ` +
+        `${logField(error instanceof Error ? error.name : "", LOGGED_ERROR_NAMES)} ${logField(code, LOGGED_CODES)}`,
     );
     return { asleep: true, result: sliceUnreachable };
   }
@@ -251,7 +270,7 @@ async function postSlice(input: SliceInput, until: number, deps: SliceDeps): Pro
     // Render answers for a sleeping free worker fast, without reaching the app, with a body like this.
     console.warn(
       `[slicer] POST /slice status ${response.status}, unexpected reply: ` +
-        `content-type ${logField(response.headers.get("content-type"))}, ${text.length} chars, ` +
+        `content-type ${logField(response.headers.get("content-type"), LOGGED_MEDIA_TYPES)}, ${text.length} chars, ` +
         `${isJson ? "JSON" : "not JSON"}`,
     );
     return { asleep: true, result: isJson ? sliceUnreachable : sliceNotJson };
