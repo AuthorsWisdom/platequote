@@ -157,7 +157,8 @@ export async function createPaypalCheckout(localOrderId: string, environment: Pa
 
   const value = (order.amountCents / 100).toFixed(2);
   const seller = order.shop.name;
-  const description = `${seller}: ${order.quote.originalFilename} x ${order.quote.quantity}`.slice(0, 127);
+  // No file name: PayPal gets the shop name, quantity, amount and order id only (terms, privacy section).
+  const description = `${seller}: 3D print x ${order.quote.quantity}`.slice(0, 127);
   const created = await paypalFetch(environment, "/v2/checkout/orders", {
     method: "POST",
     body: JSON.stringify({

@@ -15,7 +15,7 @@ const fraunces = Fraunces({
 
 export const metadata: Metadata = {
   title: "PlateQuote",
-  description: "Slice an STL, price it from the shop's rates, and pay with PayPal.",
+  description: "Slice an STL, price it from the shop's rates, and try a PayPal sandbox checkout.",
 };
 
 export default function RootLayout({
