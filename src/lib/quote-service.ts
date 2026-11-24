@@ -186,10 +186,14 @@ function isAbort(error: unknown): boolean {
   return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
-/** Never let the shared token reach a log line, even if a proxy echoes it back. */
-function redactToken(text: string): string {
+/**
+ * Text from upstream, made safe for a log line: the shared token is removed, and so is any long
+ * unbroken run (an echoed token in encoded form looks like one), then it is cut to 200 chars.
+ */
+function logSnippet(text: string): string {
   const token = workerToken();
-  return token ? text.split(token).join("[redacted]") : text;
+  const literal = token ? text.split(token).join("[redacted]") : text;
+  return literal.replace(/[^\s<>"']{24,}/g, "[long]").slice(0, 200);
 }
 
 function sliceForm(input: SliceInput): FormData {
@@ -203,19 +207,23 @@ function sliceForm(input: SliceInput): FormData {
   return body;
 }
 
-async function postSlice(input: SliceInput, timeoutMs: number): Promise<SliceAttempt> {
+/** One POST /slice that cannot run past `until` (epoch ms). */
+async function postSlice(input: SliceInput, until: number, deps: SliceDeps): Promise<SliceAttempt> {
+  const body = sliceForm(input);
+  const timeoutMs = Math.floor(until - deps.now());
+  if (timeoutMs < 1) return { asleep: false, result: timedOut };
   let response: Response;
   try {
     response = await fetch(`${workerBaseUrl()}/slice`, {
       method: "POST",
       headers: workerHeaders(),
-      body: sliceForm(input),
+      body,
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {
     if (isAbort(error)) return { asleep: false, result: timedOut };
     const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-    console.warn(`[slicer] POST /slice could not connect: ${redactToken(detail).slice(0, 200)}`);
+    console.warn(`[slicer] POST /slice could not connect: ${JSON.stringify(logSnippet(detail))}`);
     return { asleep: true, result: sliceUnreachable };
   }
   // The worker's own token refusal. A 503 is only the worker's when it carries JSON (checked below).
@@ -238,7 +246,7 @@ async function postSlice(input: SliceInput, timeoutMs: number): Promise<SliceAtt
   if (!isJson || response.status === 502 || response.status === 504) {
     // Render answers for a sleeping free worker fast, without reaching the app, with a body like this.
     console.warn(
-      `[slicer] POST /slice status ${response.status}, unexpected body: ${JSON.stringify(redactToken(text).slice(0, 200))}`,
+      `[slicer] POST /slice status ${response.status}, unexpected body: ${JSON.stringify(logSnippet(text))}`,
     );
     return { asleep: true, result: isJson ? sliceUnreachable : sliceNotJson };
   }
@@ -268,9 +276,10 @@ async function waitForWorker(waitUntil: number, deps: SliceDeps): Promise<boolea
         cache: "no-store",
         signal: AbortSignal.timeout(Math.max(1, Math.min(WAKE_PROBE_TIMEOUT_MS, left))),
       });
-      if (health.ok) {
-        await health.json();
-        return true;
+      if (health.status === 200) {
+        const body: unknown = await health.json();
+        // The worker's own /health answers {"ok": true, ...}; anything else is not the worker yet.
+        if (body && typeof body === "object" && (body as { ok?: unknown }).ok === true) return true;
       }
     } catch {
       // Still waking: connection refused, timeout, or a non-JSON placeholder page.
@@ -295,7 +304,7 @@ export async function sliceUpload(input: SliceInput, deps: SliceDeps = realSlice
   }
   // Every attempt and every wait ends by this instant, so the route keeps its save reserve.
   const sliceBy = deps.now() + input.timeoutMs;
-  const first = await postSlice(input, input.timeoutMs);
+  const first = await postSlice(input, sliceBy, deps);
   if (!first.asleep) return first.result;
   // The worker looked asleep. Wait for it inside the budget, then retry exactly once.
   const awake = await waitForWorker(sliceBy - WAKE_SLICE_RESERVE_MS, deps);
@@ -304,7 +313,7 @@ export async function sliceUpload(input: SliceInput, deps: SliceDeps = realSlice
     console.warn(`[slicer] worker did not wake inside the quote budget (${input.timeoutMs} ms)`);
     return sliceWaking;
   }
-  const second = await postSlice(input, left);
+  const second = await postSlice(input, sliceBy, deps);
   return second.result;
 }
 

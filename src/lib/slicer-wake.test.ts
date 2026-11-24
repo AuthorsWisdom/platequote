@@ -129,7 +129,8 @@ describe("sliceUpload wake and retry", () => {
         throw new TypeError("fetch failed");
       },
       () => json(502, { error: "bad gateway" }),
-      () => html(504),
+      () => json(504, { error: "gateway timeout" }),
+      () => html(503),
     ] as Route[]) {
       const clock = fakeDeps();
       const m = mockFetch([first, () => json(200, okSlice)], () => json(200, { ok: true }));
@@ -154,8 +155,7 @@ describe("sliceUpload wake and retry", () => {
       () => json(200, { ok: true }),
     );
     const result = await sliceUpload(input(), clock.deps);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toBe("slice_failed");
+    expect(result).toMatchObject({ ok: false, error: "slice_failed" });
     expect(m.fn).toHaveBeenCalledTimes(1);
   });
 
@@ -164,8 +164,7 @@ describe("sliceUpload wake and retry", () => {
     const m = mockFetch([() => json(401, { detail: "worker token missing or wrong" })], () => json(200, { ok: true }));
     const result = await sliceUpload(input(), clock.deps);
     expect(m.fn).toHaveBeenCalledTimes(1);
-    if (!result.ok) expect(result.error).toBe("worker_unauthorized");
-    expect(result.ok).toBe(false);
+    expect(result).toMatchObject({ ok: false, error: "worker_unauthorized" });
   });
 
   it("a worker JSON 503 (token not configured) is not retried", async () => {
@@ -173,7 +172,7 @@ describe("sliceUpload wake and retry", () => {
     const m = mockFetch([() => json(503, { detail: "worker token is not configured" })], () => json(200, { ok: true }));
     const result = await sliceUpload(input(), clock.deps);
     expect(m.fn).toHaveBeenCalledTimes(1);
-    if (!result.ok) expect(result.error).toBe("worker_unauthorized");
+    expect(result).toMatchObject({ ok: false, error: "worker_unauthorized" });
   });
 
   it("budget exhausted while waking returns the waking message inside the budget", async () => {
@@ -182,26 +181,110 @@ describe("sliceUpload wake and retry", () => {
     const budget = 30_000;
     const m = mockFetch([() => html(503), () => json(200, okSlice)], () => html(503));
     const result = await sliceUpload(input(budget), clock.deps);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.message).toBe(WAKING);
+    expect(result).toMatchObject({ ok: false, error: "worker_waking", message: WAKING });
     expect(m.sliceCount()).toBe(1);
     expect(clock.t - start).toBeLessThanOrEqual(budget - WAKE_SLICE_RESERVE_MS + 500);
   });
 
-  it("the token never appears in logs, even when the body echoes it", async () => {
+  it("the token never appears in logs, even when the body echoes it (plain or encoded)", async () => {
+    const entities = [...TOKEN].map((ch) => `&#${ch.charCodeAt(0)};`).join("");
+    const escaped = [...TOKEN].map((ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`).join("");
     const clock = fakeDeps();
-    mockFetch([() => html(503, `<html>X-Worker-Token: ${TOKEN}</html>`)], () => json(200, { ok: true }));
+    mockFetch(
+      [() => html(503, `<html>X-Worker-Token: ${TOKEN} ${entities} ${escaped}</html>`), () => { throw new TypeError(`fetch failed ${TOKEN}`); }],
+      () => json(200, { ok: true }),
+    );
     await sliceUpload(input(), clock.deps);
-    expect(warn).toHaveBeenCalled();
-    for (const call of warn.mock.calls) expect(call.join(" ")).not.toContain(TOKEN);
-    expect(warn.mock.calls.map((c: unknown[]) => c.join(" ")).join("\n")).toContain("status 503");
+    const logged = warn.mock.calls.map((c: unknown[]) => c.join(" ")).join("\n");
+    expect(logged).toContain("status 503");
+    expect(logged).toContain("could not connect");
+    for (const secret of [TOKEN, entities, escaped, entities.slice(0, 40), escaped.slice(0, 40)]) {
+      expect(logged).not.toContain(secret);
+    }
+  });
+
+  it("a short token echoed between spaces is still redacted", async () => {
+    vi.stubEnv("SLICER_WORKER_TOKEN", "pq9short");
+    const clock = fakeDeps();
+    mockFetch([() => html(503, "<p>token pq9short here</p>")], () => json(200, { ok: true }));
+    await sliceUpload(input(), clock.deps);
+    const logged = warn.mock.calls.map((c: unknown[]) => c.join(" ")).join("\n");
+    expect(logged).toContain("[redacted]");
+    expect(logged).not.toContain("pq9short");
   });
 
   it("logs a body snippet of at most 200 chars", async () => {
     const clock = fakeDeps();
-    mockFetch([() => html(503, "A".repeat(5000))], () => json(200, { ok: true }));
+    mockFetch([() => html(503, "word ".repeat(1000))], () => json(200, { ok: true }));
     await sliceUpload(input(), clock.deps);
     const line = String(warn.mock.calls[0][0]);
-    expect(line.length).toBeLessThan(400);
+    const snippet = JSON.parse(line.split("unexpected body: ")[1]) as string;
+    expect(snippet.startsWith("word word")).toBe(true);
+    expect(snippet.length).toBeLessThanOrEqual(200);
+  });
+
+  it("health must be the worker's 200 {ok: true}, not any JSON", async () => {
+    const clock = fakeDeps();
+    let probes = 0;
+    const m = mockFetch([() => html(503), () => json(200, okSlice)], () => {
+      probes += 1;
+      if (probes === 1) return json(200, { ok: false });
+      if (probes === 2) return json(200, { status: "proxy" });
+      if (probes === 3) return json(202, { ok: true });
+      return json(200, { ok: true });
+    });
+    const result = await sliceUpload(input(), clock.deps);
+    expect(result.ok).toBe(true);
+    expect(probes).toBe(4);
+    expect(m.sliceCount()).toBe(2);
+  });
+
+  it("a POST timeout is not retried", async () => {
+    const clock = fakeDeps();
+    const m = mockFetch(
+      [() => { throw new DOMException("timed out", "TimeoutError"); }],
+      () => json(200, { ok: true }),
+    );
+    const result = await sliceUpload(input(), clock.deps);
+    expect(result).toMatchObject({ ok: false, error: "worker_timeout" });
+    expect(m.fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("a body that stalls until the timeout is not retried", async () => {
+    const clock = fakeDeps();
+    const stalled = {
+      status: 200,
+      text: () => Promise.reject(new DOMException("timed out", "TimeoutError")),
+    } as unknown as Response;
+    const m = mockFetch([() => stalled], () => json(200, { ok: true }));
+    const result = await sliceUpload(input(), clock.deps);
+    expect(result).toMatchObject({ ok: false, error: "worker_timeout" });
+    expect(m.fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("each POST timeout ends by the slice budget, including the retry", async () => {
+    const clock = fakeDeps(700);
+    const start = clock.t;
+    const budget = 40_000;
+    const timeouts: Array<{ at: number; ms: number }> = [];
+    const real = AbortSignal.timeout.bind(AbortSignal);
+    const spy = vi.spyOn(AbortSignal, "timeout").mockImplementation((ms: number) => {
+      timeouts.push({ at: clock.t, ms });
+      return real(ms);
+    });
+    let probes = 0;
+    const m = mockFetch([() => html(503), () => json(200, okSlice)], () => {
+      probes += 1;
+      return probes < 8 ? html(503) : json(200, { ok: true });
+    });
+    const result = await sliceUpload(input(budget), clock.deps);
+    spy.mockRestore();
+    expect(result.ok).toBe(true);
+    expect(m.sliceCount()).toBe(2);
+    const posts = m.fn.mock.calls
+      .map(([u], i) => ({ u: String(u), i }))
+      .filter(({ u }) => u.endsWith("/slice"));
+    expect(posts).toHaveLength(2);
+    for (const t of timeouts) expect(t.at + t.ms).toBeLessThanOrEqual(start + budget);
   });
 });
