@@ -68,7 +68,7 @@ services:
   - type: web
     name: platequote-worker
     runtime: docker
-    plan: free
+    plan: starter
     region: oregon
     dockerfilePath: ./worker/Dockerfile
     dockerContext: ./worker
